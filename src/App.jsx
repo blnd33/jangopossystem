@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { COLORS, PAGE_TITLES } from './data/store';
+import { useLanguage } from './data/LanguageContext';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import StatCards from './components/StatCards';
@@ -23,6 +24,7 @@ import Settings from './pages/Settings';
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { isRTL } = useLanguage();
 
   function renderPage() {
     switch (activePage) {
@@ -57,7 +59,8 @@ export default function App() {
     <div style={{
       display: 'flex', height: '100vh',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
-      background: COLORS.offWhite
+      background: COLORS.offWhite,
+      flexDirection: isRTL ? 'row-reverse' : 'row'
     }}>
 
       {/* SIDEBAR */}
@@ -80,14 +83,17 @@ export default function App() {
         {/* CONTENT */}
         <div style={{
           flex: 1, overflowY: 'auto',
-          padding: activePage === 'pos' ? 0 : 28
+          padding: activePage === 'pos' ? 0 : 28,
+          direction: isRTL ? 'rtl' : 'ltr'
         }}>
 
           {activePage !== 'pos' && activePage !== 'dashboard' && (
             <>
               <div style={{
                 height: 3,
-                background: `linear-gradient(90deg, ${COLORS.red}, ${COLORS.red}44, transparent)`,
+                background: isRTL
+                  ? `linear-gradient(270deg, ${COLORS.red}, ${COLORS.red}44, transparent)`
+                  : `linear-gradient(90deg, ${COLORS.red}, ${COLORS.red}44, transparent)`,
                 borderRadius: 2, marginBottom: 24
               }} />
               <StatCards />
@@ -106,7 +112,8 @@ export default function App() {
               <div style={{
                 padding: '14px 20px',
                 borderBottom: `1px solid ${COLORS.border}`,
-                display: 'flex', alignItems: 'center', gap: 10
+                display: 'flex', alignItems: 'center', gap: 10,
+                flexDirection: isRTL ? 'row-reverse' : 'row'
               }}>
                 <div style={{
                   width: 4, height: 18,

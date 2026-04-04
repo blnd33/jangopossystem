@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { COLORS } from '../data/store';
 import { getSales, getExpenses } from '../data/store';
+import { useLanguage } from '../data/LanguageContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 export default function ProfitLoss() {
+  const { t, isRTL, language } = useLanguage();
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [period, setPeriod] = useState('month');
@@ -33,7 +35,6 @@ export default function ProfitLoss() {
   const grossMargin = revenue > 0 ? ((grossProfit / revenue) * 100).toFixed(1) : 0;
   const netMargin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : 0;
 
-  // Monthly trend for chart (last 6 months)
   const trendData = Array.from({ length: 6 }, (_, i) => {
     const d = new Date();
     d.setMonth(d.getMonth() - (5 - i));
@@ -47,7 +48,7 @@ export default function ProfitLoss() {
     const mExpTotal = mExpenses.reduce((sum, e) => sum + e.amount, 0);
     const mNetProfit = mGrossProfit - mExpTotal;
     return {
-      label: d.toLocaleDateString('en-GB', { month: 'short' }),
+      label: d.toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { month: 'short' }),
       revenue: parseFloat(mRevenue.toFixed(2)),
       grossProfit: parseFloat(mGrossProfit.toFixed(2)),
       netProfit: parseFloat(mNetProfit.toFixed(2)),
@@ -55,7 +56,6 @@ export default function ProfitLoss() {
     };
   });
 
-  // Expense breakdown for pie
   const expenseByCategory = filteredExpenses.reduce((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + e.amount;
     return acc;
@@ -63,84 +63,71 @@ export default function ProfitLoss() {
   const pieData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
   const PIE_COLORS = [COLORS.red, COLORS.info, COLORS.warning, COLORS.success, '#8B5CF6', '#EC4899', COLORS.charcoalMid, COLORS.steelDark];
 
-  const months = [];
-  for (let i = 0; i < 24; i++) {
+  const months = Array.from({ length: 24 }, (_, i) => {
     const d = new Date();
     d.setMonth(d.getMonth() - i);
-    months.push(d.toISOString().slice(0, 7));
-  }
+    return d.toISOString().slice(0, 7);
+  });
 
   const years = Array.from({ length: 5 }, (_, i) =>
     (new Date().getFullYear() - i).toString()
   );
 
   const plRows = [
-    { label: 'Revenue', value: revenue, type: 'revenue', bold: false },
-    { label: 'Cost of Goods Sold (COGS)', value: -cogs, type: 'expense', bold: false },
-    { label: 'Gross Profit', value: grossProfit, type: grossProfit >= 0 ? 'profit' : 'loss', bold: true, highlight: true },
-    { label: `Gross Margin`, value: null, note: `${grossMargin}%`, bold: false },
-    { label: 'Operating Expenses', value: -totalExpenses, type: 'expense', bold: false },
-    { label: 'Net Profit / Loss', value: netProfit, type: netProfit >= 0 ? 'profit' : 'loss', bold: true, highlight: true },
-    { label: 'Net Margin', value: null, note: `${netMargin}%`, bold: false },
+    { label: t('revenue'), value: revenue, type: 'revenue', bold: false },
+    { label: t('cogs'), value: -cogs, type: 'expense', bold: false },
+    { label: t('grossProfit'), value: grossProfit, type: grossProfit >= 0 ? 'profit' : 'loss', bold: true, highlight: true },
+    { label: t('grossMargin'), value: null, note: `${grossMargin}%`, bold: false },
+    { label: t('operatingExpenses'), value: -totalExpenses, type: 'expense', bold: false },
+    { label: t('netProfitLoss'), value: netProfit, type: netProfit >= 0 ? 'profit' : 'loss', bold: true, highlight: true },
+    { label: t('netMargin'), value: null, note: `${netMargin}%`, bold: false },
   ];
 
+  const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
+
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'Georgia, serif' }}>
-            Profit & Loss
+          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
+            {t('pl')}
           </div>
           <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>
-            Financial performance overview
+            {language === 'ar' ? 'نظرة عامة على الأداء المالي' : 'Financial performance overview'}
           </div>
         </div>
 
         {/* Period selector */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{
-            display: 'flex', border: `1px solid ${COLORS.border}`,
-            borderRadius: 8, overflow: 'hidden'
-          }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+          <div style={{ display: 'flex', border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden' }}>
             {['month', 'year', 'all'].map(p => (
               <button key={p} onClick={() => setPeriod(p)} style={{
                 padding: '8px 16px', border: 'none', cursor: 'pointer',
                 background: period === p ? COLORS.charcoal : COLORS.white,
                 color: period === p ? COLORS.white : COLORS.charcoalMid,
-                fontSize: 12, fontWeight: period === p ? 600 : 400,
-                textTransform: 'capitalize'
+                fontSize: 12, fontWeight: period === p ? 600 : 400
               }}>
-                {p === 'all' ? 'All Time' : p.charAt(0).toUpperCase() + p.slice(1)}
+                {p === 'all' ? t('allTime') : t(p)}
               </button>
             ))}
           </div>
-
           {period === 'month' && (
-            <select
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
-              style={{
-                padding: '8px 12px', border: `1px solid ${COLORS.border}`,
-                borderRadius: 8, fontSize: 13, outline: 'none',
-                background: COLORS.white, cursor: 'pointer'
-              }}
-            >
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{
+              padding: '8px 12px', border: `1px solid ${COLORS.border}`,
+              borderRadius: 8, fontSize: 13, outline: 'none',
+              background: COLORS.white, cursor: 'pointer'
+            }}>
               {months.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           )}
-
           {period === 'year' && (
-            <select
-              value={selectedYear}
-              onChange={e => setSelectedYear(e.target.value)}
-              style={{
-                padding: '8px 12px', border: `1px solid ${COLORS.border}`,
-                borderRadius: 8, fontSize: 13, outline: 'none',
-                background: COLORS.white, cursor: 'pointer'
-              }}
-            >
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} style={{
+              padding: '8px 12px', border: `1px solid ${COLORS.border}`,
+              borderRadius: 8, fontSize: 13, outline: 'none',
+              background: COLORS.white, cursor: 'pointer'
+            }}>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           )}
@@ -158,18 +145,18 @@ export default function ProfitLoss() {
           fontSize: 15, fontWeight: 700, color: COLORS.charcoal,
           marginBottom: 16, paddingBottom: 12,
           borderBottom: `2px solid ${COLORS.charcoal}`,
-          display: 'flex', justifyContent: 'space-between'
+          display: 'flex', justifyContent: 'space-between',
+          flexDirection: isRTL ? 'row-reverse' : 'row'
         }}>
-          <span>Income Statement</span>
+          <span>{t('incomeStatement')}</span>
           <span style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 400 }}>
-            {period === 'month' ? selectedMonth : period === 'year' ? selectedYear : 'All Time'}
+            {period === 'month' ? selectedMonth : period === 'year' ? selectedYear : t('allTime')}
           </span>
         </div>
 
         {plRows.map((row, i) => (
           <div key={i} style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: row.highlight ? '12px 14px' : '8px 4px',
             marginBottom: row.highlight ? 8 : 0,
             background: row.highlight
@@ -177,10 +164,10 @@ export default function ProfitLoss() {
               : 'none',
             borderRadius: row.highlight ? 8 : 0,
             borderTop: row.highlight ? `1px solid ${row.type === 'profit' ? COLORS.success : COLORS.red}33` : 'none',
+            flexDirection: isRTL ? 'row-reverse' : 'row'
           }}>
             <span style={{
-              fontSize: row.bold ? 14 : 13,
-              fontWeight: row.bold ? 700 : 400,
+              fontSize: row.bold ? 14 : 13, fontWeight: row.bold ? 700 : 400,
               color: row.highlight
                 ? row.type === 'profit' ? COLORS.success : COLORS.red
                 : COLORS.charcoal
@@ -188,14 +175,12 @@ export default function ProfitLoss() {
               {row.label}
             </span>
             <span style={{
-              fontSize: row.bold ? 16 : 14,
-              fontWeight: row.bold ? 800 : 500,
+              fontSize: row.bold ? 16 : 14, fontWeight: row.bold ? 800 : 500,
               color: row.note ? COLORS.textMuted
                 : row.type === 'revenue' ? COLORS.success
                 : row.type === 'expense' ? COLORS.red
-                : row.type === 'profit' ? COLORS.success
-                : COLORS.red,
-              fontFamily: row.bold ? 'Georgia, serif' : 'inherit'
+                : row.type === 'profit' ? COLORS.success : COLORS.red,
+              fontFamily: row.bold ? (language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif') : 'inherit'
             }}>
               {row.note ? row.note : row.value >= 0
                 ? `$${row.value.toFixed(2)}`
@@ -208,21 +193,20 @@ export default function ProfitLoss() {
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Revenue', value: `$${revenue.toFixed(2)}`, color: COLORS.success },
-          { label: 'Gross Profit', value: `$${grossProfit.toFixed(2)}`, color: COLORS.info },
-          { label: 'Net Profit', value: `$${netProfit.toFixed(2)}`, color: netProfit >= 0 ? COLORS.success : COLORS.red },
-          { label: 'Total Expenses', value: `$${totalExpenses.toFixed(2)}`, color: COLORS.red },
+          { label: t('revenue'), value: `$${revenue.toFixed(2)}`, color: COLORS.success },
+          { label: t('grossProfit'), value: `$${grossProfit.toFixed(2)}`, color: COLORS.info },
+          { label: t('netProfitLoss'), value: `$${netProfit.toFixed(2)}`, color: netProfit >= 0 ? COLORS.success : COLORS.red },
+          { label: t('totalExpenses'), value: `$${totalExpenses.toFixed(2)}`, color: COLORS.red },
         ].map(card => (
           <div key={card.label} style={{
             background: COLORS.white, borderRadius: 10,
-            border: `1px solid ${COLORS.border}`,
-            padding: '14px 16px',
+            border: `1px solid ${COLORS.border}`, padding: '14px 16px',
             borderTop: `3px solid ${card.color}`,
           }}>
             <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
               {card.label}
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: card.color, marginTop: 4, fontFamily: 'Georgia, serif' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: card.color, marginTop: 4, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
               {card.value}
             </div>
           </div>
@@ -233,17 +217,12 @@ export default function ProfitLoss() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
         {/* Trend Chart */}
-        <div style={{
-          background: COLORS.white, borderRadius: 12,
-          border: `1px solid ${COLORS.border}`, padding: '20px 24px'
-        }}>
+        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px' }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 16 }}>
-            6-Month Trend
+            {t('trendChart')}
           </div>
           {sales.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>
-              No data yet
-            </div>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>{t('noData')}</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={trendData} barGap={2}>
@@ -254,49 +233,29 @@ export default function ProfitLoss() {
                   formatter={(v, n) => [`$${v.toFixed(2)}`, n]}
                   contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }}
                 />
-                <Bar dataKey="revenue" fill={COLORS.charcoal} radius={[3, 3, 0, 0]} name="Revenue" />
-                <Bar dataKey="grossProfit" fill={COLORS.info} radius={[3, 3, 0, 0]} name="Gross Profit" />
-                <Bar dataKey="netProfit" fill={COLORS.red} radius={[3, 3, 0, 0]} name="Net Profit" />
+                <Bar dataKey="revenue" fill={COLORS.charcoal} radius={[3, 3, 0, 0]} name={t('revenue')} />
+                <Bar dataKey="grossProfit" fill={COLORS.info} radius={[3, 3, 0, 0]} name={t('grossProfit')} />
+                <Bar dataKey="netProfit" fill={COLORS.red} radius={[3, 3, 0, 0]} name={t('netProfitLoss')} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
         {/* Expense Pie */}
-        <div style={{
-          background: COLORS.white, borderRadius: 12,
-          border: `1px solid ${COLORS.border}`, padding: '20px 24px'
-        }}>
+        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px' }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 16 }}>
-            Expense Breakdown
+            {t('expenseBreakdown')}
           </div>
           {pieData.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>
-              No expense data yet
-            </div>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>{t('noData')}</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%" cy="50%"
-                  innerRadius={55} outerRadius={85}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
+                <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
-                <Tooltip
-                  formatter={(v) => [`$${v.toFixed(2)}`]}
-                  contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }}
-                />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 11 }}
-                />
+                <Tooltip formatter={(v) => [`$${v.toFixed(2)}`]} contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
           )}

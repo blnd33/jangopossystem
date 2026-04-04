@@ -5,12 +5,14 @@ import {
   getExpenses, getDeliveries, getReturns,
   getEmployees, getPurchaseOrders
 } from '../data/store';
+import { useLanguage } from '../data/LanguageContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, AreaChart, Area
+  Tooltip, ResponsiveContainer
 } from 'recharts';
 
 export default function Dashboard() {
+  const { t, isRTL, language } = useLanguage();
   const [sales, setSales] = useState([]);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -34,14 +36,12 @@ export default function Dashboard() {
   const today = new Date().toISOString().split('T')[0];
   const thisMonth = new Date().toISOString().slice(0, 7);
 
-  // Today stats
   const todaySales = sales.filter(s => s.date.split('T')[0] === today);
   const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayProfit = todaySales.reduce((sum, s) =>
     sum + s.items.reduce((ps, item) =>
       ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0);
 
-  // Month stats
   const monthSales = sales.filter(s => s.date.startsWith(thisMonth));
   const monthRevenue = monthSales.reduce((sum, s) => sum + s.total, 0);
   const monthExpenses = expenses
@@ -51,20 +51,14 @@ export default function Dashboard() {
     sum + s.items.reduce((ps, item) =>
       ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0) - monthExpenses;
 
-  // Low stock
   const lowStock = products.filter(p => p.stock <= (p.lowStockAlert || 5));
   const outOfStock = products.filter(p => p.stock === 0);
-
-  // Pending items
   const pendingDeliveries = deliveries.filter(d => d.status === 'Pending');
   const pendingReturns = returns.filter(r => r.status === 'Pending');
   const pendingOrders = orders.filter(o => o.status === 'Ordered');
-
-  // Customer debt
   const totalDebt = customers.reduce((sum, c) =>
     sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
 
-  // Last 7 days chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
@@ -72,7 +66,7 @@ export default function Dashboard() {
     const daySales = sales.filter(s => s.date.split('T')[0] === dateStr);
     const dayExpenses = expenses.filter(e => e.date === dateStr);
     return {
-      label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }),
+      label: d.toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { weekday: 'short', day: 'numeric' }),
       revenue: parseFloat(daySales.reduce((sum, s) => sum + s.total, 0).toFixed(2)),
       expenses: parseFloat(dayExpenses.reduce((sum, e) => sum + e.amount, 0).toFixed(2)),
       profit: parseFloat(daySales.reduce((sum, s) =>
@@ -81,7 +75,6 @@ export default function Dashboard() {
     };
   });
 
-  // Top products
   const productSales = {};
   sales.forEach(sale => {
     sale.items.forEach(item => {
@@ -95,42 +88,48 @@ export default function Dashboard() {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
 
-  // Recent sales
   const recentSales = [...sales].reverse().slice(0, 5);
 
+  const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif';
+
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, direction: isRTL ? 'rtl' : 'ltr' }}>
 
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'Georgia, serif' }}>
-          Dashboard
+        <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily }}>
+          {t('dashboard')}
         </div>
         <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>
-          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {new Date().toLocaleDateString(
+            language === 'ar' ? 'ar-IQ' : 'en-GB',
+            { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
+          )}
         </div>
       </div>
 
-      {/* Today highlight banner */}
+      {/* Today Banner */}
       <div style={{
         background: `linear-gradient(135deg, ${COLORS.charcoal}, ${COLORS.charcoalLight})`,
         borderRadius: 12, padding: '20px 28px', marginBottom: 20,
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20
       }}>
         {[
-          { label: "Today's Revenue", value: `$${todayRevenue.toFixed(2)}`, sub: `${todaySales.length} sales`, color: COLORS.white },
-          { label: "Today's Profit", value: `$${todayProfit.toFixed(2)}`, sub: 'After cost of goods', color: COLORS.success },
-          { label: 'Monthly Revenue', value: `$${monthRevenue.toFixed(2)}`, sub: 'This month', color: COLORS.steel },
-          { label: 'Net Profit (Month)', value: `$${monthProfit.toFixed(2)}`, sub: 'After all expenses', color: monthProfit >= 0 ? COLORS.success : COLORS.red },
+          { label: t('todayRevenue'), value: `$${todayRevenue.toFixed(2)}`, sub: `${todaySales.length} ${t('transactions')}`, color: COLORS.white },
+          { label: t('todayProfit'), value: `$${todayProfit.toFixed(2)}`, sub: t('afterCogs'), color: COLORS.success },
+          { label: t('monthlyRevenue'), value: `$${monthRevenue.toFixed(2)}`, sub: t('thisMonth'), color: COLORS.steel },
+          { label: t('netProfit'), value: `$${monthProfit.toFixed(2)}`, sub: t('afterExpenses'), color: monthProfit >= 0 ? COLORS.success : COLORS.red },
         ].map((card, i) => (
           <div key={card.label} style={{
-            borderLeft: i > 0 ? `1px solid ${COLORS.charcoalMid}` : 'none',
-            paddingLeft: i > 0 ? 20 : 0
+            borderLeft: !isRTL && i > 0 ? `1px solid ${COLORS.charcoalMid}` : 'none',
+            borderRight: isRTL && i > 0 ? `1px solid ${COLORS.charcoalMid}` : 'none',
+            paddingLeft: !isRTL && i > 0 ? 20 : 0,
+            paddingRight: isRTL && i > 0 ? 20 : 0,
           }}>
-            <div style={{ fontSize: 11, color: COLORS.steelDark, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            <div style={{ fontSize: 11, color: COLORS.steelDark, textTransform: 'uppercase', letterSpacing: language === 'ar' ? 0 : 0.8 }}>
               {card.label}
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: card.color, marginTop: 4, fontFamily: 'Georgia, serif' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: card.color, marginTop: 4, fontFamily }}>
               {card.value}
             </div>
             <div style={{ fontSize: 11, color: COLORS.charcoalMid, marginTop: 2 }}>
@@ -149,8 +148,8 @@ export default function Dashboard() {
               borderRadius: 8, padding: '10px 16px', fontSize: 13,
               color: COLORS.warning, fontWeight: 500, flex: 1, minWidth: 200
             }}>
-              ⚠️ {lowStock.length} product{lowStock.length > 1 ? 's' : ''} low on stock
-              {outOfStock.length > 0 && ` · ${outOfStock.length} out of stock`}
+              ⚠️ {lowStock.length} {t('lowStockAlert')}
+              {outOfStock.length > 0 && ` · ${outOfStock.length} ${t('outOfStock')}`}
             </div>
           )}
           {pendingDeliveries.length > 0 && (
@@ -159,7 +158,7 @@ export default function Dashboard() {
               borderRadius: 8, padding: '10px 16px', fontSize: 13,
               color: COLORS.info, fontWeight: 500, flex: 1, minWidth: 200
             }}>
-              🚚 {pendingDeliveries.length} pending deliver{pendingDeliveries.length > 1 ? 'ies' : 'y'}
+              🚚 {pendingDeliveries.length} {t('pendingDeliveries')}
             </div>
           )}
           {pendingReturns.length > 0 && (
@@ -168,7 +167,7 @@ export default function Dashboard() {
               borderRadius: 8, padding: '10px 16px', fontSize: 13,
               color: COLORS.red, fontWeight: 500, flex: 1, minWidth: 200
             }}>
-              🔄 {pendingReturns.length} pending return{pendingReturns.length > 1 ? 's' : ''}
+              🔄 {pendingReturns.length} {t('pendingReturns')}
             </div>
           )}
           {totalDebt > 0 && (
@@ -177,7 +176,7 @@ export default function Dashboard() {
               borderRadius: 8, padding: '10px 16px', fontSize: 13,
               color: COLORS.red, fontWeight: 500, flex: 1, minWidth: 200
             }}>
-              💸 ${totalDebt.toFixed(2)} customer debt outstanding
+              💸 ${totalDebt.toFixed(2)} {t('customerDebt')}
             </div>
           )}
         </div>
@@ -186,10 +185,10 @@ export default function Dashboard() {
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Total Products', value: products.length, sub: `${outOfStock.length} out of stock`, color: COLORS.info },
-          { label: 'Total Customers', value: customers.length, sub: `${customers.filter(c => c.tag === 'VIP').length} VIP`, color: COLORS.success },
-          { label: 'Total Employees', value: employees.filter(e => e.status === 'Active').length, sub: 'Active staff', color: COLORS.warning },
-          { label: 'Supplier Orders', value: pendingOrders.length, sub: 'Awaiting delivery', color: COLORS.red },
+          { label: t('totalProducts'), value: products.length, sub: `${outOfStock.length} ${t('outOfStock')}`, color: COLORS.info },
+          { label: t('totalCustomers'), value: customers.length, sub: `${customers.filter(c => c.tag === 'VIP').length} VIP`, color: COLORS.success },
+          { label: t('totalEmployees'), value: employees.filter(e => e.status === 'Active').length, sub: t('activeStaff'), color: COLORS.warning },
+          { label: t('supplierOrders'), value: pendingOrders.length, sub: t('awaitingDelivery'), color: COLORS.red },
         ].map(card => (
           <div key={card.label} style={{
             background: COLORS.white, borderRadius: 10,
@@ -197,10 +196,10 @@ export default function Dashboard() {
             padding: '14px 16px',
             borderTop: `3px solid ${card.color}`,
           }}>
-            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: language === 'ar' ? 0 : 0.8 }}>
               {card.label}
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: COLORS.charcoal, marginTop: 4, fontFamily: 'Georgia, serif' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: COLORS.charcoal, marginTop: 4, fontFamily }}>
               {card.value}
             </div>
             <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>{card.sub}</div>
@@ -217,14 +216,11 @@ export default function Dashboard() {
           border: `1px solid ${COLORS.border}`, padding: '20px 24px'
         }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 4 }}>
-            Last 7 Days
-          </div>
-          <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>
-            Revenue vs Expenses vs Profit
+            {t('last7Days')}
           </div>
           {sales.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>
-              No sales data yet — start selling to see your chart!
+              {t('noData')}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -236,9 +232,9 @@ export default function Dashboard() {
                   formatter={(v, n) => [`$${v.toFixed(2)}`, n]}
                   contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }}
                 />
-                <Bar dataKey="revenue" fill={COLORS.charcoal} radius={[3, 3, 0, 0]} name="Revenue" />
-                <Bar dataKey="expenses" fill={COLORS.warning} radius={[3, 3, 0, 0]} name="Expenses" />
-                <Bar dataKey="profit" fill={COLORS.red} radius={[3, 3, 0, 0]} name="Profit" />
+                <Bar dataKey="revenue" fill={COLORS.charcoal} radius={[3, 3, 0, 0]} name={t('revenue')} />
+                <Bar dataKey="expenses" fill={COLORS.warning} radius={[3, 3, 0, 0]} name={t('totalExpenses')} />
+                <Bar dataKey="profit" fill={COLORS.red} radius={[3, 3, 0, 0]} name={t('grossProfit')} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -250,14 +246,11 @@ export default function Dashboard() {
           border: `1px solid ${COLORS.border}`, padding: '20px 24px'
         }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>
-            Low Stock Alert
+            {t('lowStockAlert')}
           </div>
           {lowStock.length === 0 ? (
-            <div style={{
-              textAlign: 'center', padding: '30px 0',
-              color: COLORS.success, fontSize: 13
-            }}>
-              ✅ All products well stocked!
+            <div style={{ textAlign: 'center', padding: '30px 0', color: COLORS.success, fontSize: 13 }}>
+              ✅ {t('allStocked')}
             </div>
           ) : (
             <div style={{ overflowY: 'auto', maxHeight: 240 }}>
@@ -268,19 +261,17 @@ export default function Dashboard() {
                   borderBottom: `1px solid ${COLORS.offWhite}`
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: COLORS.charcoal }}>
-                      {p.name}
-                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: COLORS.charcoal }}>{p.name}</div>
                     <div style={{ fontSize: 10, color: COLORS.textMuted }}>
-                      Alert at {p.lowStockAlert || 5} units
+                      {t('lowStockAt')} {p.lowStockAlert || 5} {t('units')}
                     </div>
                   </div>
                   <div style={{
                     fontSize: 14, fontWeight: 800,
                     color: p.stock === 0 ? COLORS.red : COLORS.warning,
-                    minWidth: 40, textAlign: 'right'
+                    minWidth: 40, textAlign: isRTL ? 'left' : 'right'
                   }}>
-                    {p.stock === 0 ? 'OUT' : p.stock}
+                    {p.stock === 0 ? t('outOfStock') : p.stock}
                   </div>
                 </div>
               ))}
@@ -298,17 +289,18 @@ export default function Dashboard() {
           border: `1px solid ${COLORS.border}`, padding: '20px 24px'
         }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>
-            Recent Sales
+            {t('recentSales')}
           </div>
           {recentSales.length === 0 ? (
             <div style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center', padding: '30px 0' }}>
-              No sales yet
+              {t('noData')}
             </div>
           ) : recentSales.map((sale, i) => (
             <div key={sale.id} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '8px 0',
-              borderBottom: i < recentSales.length - 1 ? `1px solid ${COLORS.offWhite}` : 'none'
+              borderBottom: i < recentSales.length - 1 ? `1px solid ${COLORS.offWhite}` : 'none',
+              flexDirection: isRTL ? 'row-reverse' : 'row'
             }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 8,
@@ -318,18 +310,18 @@ export default function Dashboard() {
               }}>
                 #{sale.id.slice(-4).toUpperCase()}
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal }}>
                   {sale.customerName}
                 </div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-                  {new Date(sale.date).toLocaleDateString('en-GB', {
-                    day: 'numeric', month: 'short',
-                    hour: '2-digit', minute: '2-digit'
-                  })}
+                  {new Date(sale.date).toLocaleDateString(
+                    language === 'ar' ? 'ar-IQ' : 'en-GB',
+                    { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }
+                  )}
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
+              <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.charcoal }}>
                   ${sale.total.toFixed(2)}
                 </div>
@@ -347,34 +339,32 @@ export default function Dashboard() {
           border: `1px solid ${COLORS.border}`, padding: '20px 24px'
         }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>
-            Top Products
+            {t('topProducts')}
           </div>
           {topProducts.length === 0 ? (
             <div style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center', padding: '30px 0' }}>
-              No sales data yet
+              {t('noData')}
             </div>
           ) : topProducts.map((p, i) => (
             <div key={p.name} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '8px 0',
-              borderBottom: i < topProducts.length - 1 ? `1px solid ${COLORS.offWhite}` : 'none'
+              borderBottom: i < topProducts.length - 1 ? `1px solid ${COLORS.offWhite}` : 'none',
+              flexDirection: isRTL ? 'row-reverse' : 'row'
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
                 background: i === 0 ? `${COLORS.red}20` : COLORS.offWhite,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700,
-                color: i === 0 ? COLORS.red : COLORS.charcoalMid,
-                flexShrink: 0
+                color: i === 0 ? COLORS.red : COLORS.charcoalMid, flexShrink: 0
               }}>
                 {i + 1}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal }}>
-                  {p.name}
-                </div>
+              <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal }}>{p.name}</div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-                  {p.qty} units sold
+                  {p.qty} {t('unitsSold')}
                 </div>
               </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>
