@@ -1,24 +1,76 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-* {
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  transition: background 0.3s, color 0.3s;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
+/* ── LIGHT MODE (default) ── */
+:root, [data-theme="light"] {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F4F5F6;
+  --bg-surface: #EAECEE;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #2A2D30;
+  --bg-input: #FFFFFF;
+  --text-primary: #2A2D30;
+  --text-secondary: #4E5358;
+  --text-muted: #7A8490;
+  --border-color: #D1D5D9;
+  --shadow: rgba(0,0,0,0.06);
+  --red: #CC1B1B;
+  --red-dark: #A01515;
+  --success: #16A34A;
+  --warning: #D97706;
+  --info: #2563EB;
+  --overlay: rgba(0,0,0,0.55);
 }
-::-webkit-scrollbar-track {
-  background: #2A2D30;
+
+/* ── DARK MODE ── */
+[data-theme="dark"] {
+  --bg-primary: #1a1d21;
+  --bg-secondary: #22262b;
+  --bg-surface: #2a2f36;
+  --bg-card: #2a2f36;
+  --bg-sidebar: #111316;
+  --bg-input: #2a2f36;
+  --text-primary: #e8eaed;
+  --text-secondary: #b0b8c1;
+  --text-muted: #7a8490;
+  --border-color: #3a4149;
+  --shadow: rgba(0,0,0,0.3);
+  --red: #e53030;
+  --red-dark: #CC1B1B;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --overlay: rgba(0,0,0,0.75);
 }
-::-webkit-scrollbar-thumb {
-  background: #CC1B1B;
-  border-radius: 3px;
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Smooth transitions */
+*, input, select, textarea, button {
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+/* Input autofill dark mode fix */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px var(--bg-input) inset;
+  -webkit-text-fill-color: var(--text-primary);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+@media print {
+  .no-print { display: none !important; }
 }

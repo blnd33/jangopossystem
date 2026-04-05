@@ -1,4 +1,49 @@
 // ── Colors ─────────────────────────────────────────
+
+// ── Colors ─────────────────────────────────────────
+export function getColors() {
+  return {
+    steel: "#C8CDD2",
+    steelDark: "#9BA3AA",
+    charcoal: "#2A2D30",
+    charcoalLight: "#3D4145",
+    charcoalMid: "#4E5358",
+    red: "#CC1B1B",
+    redDark: "#A01515",
+    redLight: "#E53030",
+    white: "#FFFFFF",
+    offWhite: "#F4F5F6",
+    surface: "#EAECEE",
+    textMuted: "#7A8490",
+    border: "#D1D5D9",
+    success: "#16A34A",
+    warning: "#D97706",
+    info: "#2563EB",
+  };
+}
+
+export function getDarkColors() {
+  return {
+    steel: "#4a5568",
+    steelDark: "#718096",
+    charcoal: "#e8eaed",
+    charcoalLight: "#b0b8c1",
+    charcoalMid: "#9aa3ad",
+    red: "#e53030",
+    redDark: "#CC1B1B",
+    redLight: "#f87171",
+    white: "#2a2f36",
+    offWhite: "#22262b",
+    surface: "#1a1d21",
+    textMuted: "#7a8490",
+    border: "#3a4149",
+    success: "#22c55e",
+    warning: "#f59e0b",
+    info: "#3b82f6",
+  };
+}
+
+// Keep COLORS for backward compatibility — will be overridden by useThemeColors()
 export const COLORS = {
   steel: "#C8CDD2",
   steelDark: "#9BA3AA",
@@ -294,4 +339,31 @@ export function formatMoney(amount, currencySettings) {
     return `${Math.round(iqd).toLocaleString()} IQD`;
   }
   return `$${parseFloat(amount).toFixed(2)}`;
+}
+// ── Gifts ──────────────────────────────────────────
+export function getGifts() {
+  return JSON.parse(localStorage.getItem('jango_gifts') || '[]');
+}
+export function saveGifts(data) {
+  localStorage.setItem('jango_gifts', JSON.stringify(data));
+}
+
+export function getGiftMilestones() {
+  const defaults = [
+    { id: 'ms1', threshold: 500, giftType: 'discount', giftValue: 10, description: '10% discount voucher', active: true },
+    { id: 'ms2', threshold: 1000, giftType: 'service', giftValue: 0, description: 'Free delivery on next order', active: true },
+    { id: 'ms3', threshold: 2500, giftType: 'product', giftValue: 0, description: 'Free small furniture item', active: true },
+    { id: 'ms4', threshold: 5000, giftType: 'credit', giftValue: 100, description: 'VIP upgrade + $100 credit', active: true },
+  ];
+  return JSON.parse(localStorage.getItem('jango_gift_milestones') || JSON.stringify(defaults));
+}
+export function saveGiftMilestones(data) {
+  localStorage.setItem('jango_gift_milestones', JSON.stringify(data));
+}
+// ── Theme ──────────────────────────────────────────
+export function getTheme() {
+  return localStorage.getItem('jango_theme') || 'light';
+}
+export function saveTheme(theme) {
+  localStorage.setItem('jango_theme', theme);
 }

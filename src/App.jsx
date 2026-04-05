@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { COLORS, PAGE_TITLES } from './data/store';
 import { useLanguage } from './data/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
+import { useTheme } from './contexts/ThemeContext';
+import { useThemeColors } from './hooks/useThemeColors';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import StatCards from './components/StatCards';
@@ -23,29 +25,22 @@ import Returns from './pages/Returns';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
+import Reports from './pages/Reports';
+import Gifts from './pages/Gifts';
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { isRTL, t } = useLanguage();
+  const { isRTL } = useLanguage();
   const { currentUser, loading, hasPermission, isSuperAdmin } = useAuth();
+  const { isDark } = useTheme();
+  const C = useThemeColors();
 
-  // Show loading screen
   if (loading) {
     return (
-      <div style={{
-        height: '100vh', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        background: COLORS.charcoal
-      }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isDark ? '#1a1d21' : COLORS.charcoal }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 60, height: 60, borderRadius: 12,
-            background: `linear-gradient(135deg, ${COLORS.steel}, ${COLORS.steelDark})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
-          }}>
+          <div style={{ width: 60, height: 60, borderRadius: 12, background: `linear-gradient(135deg, ${COLORS.steel}, ${COLORS.steelDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <span style={{ fontSize: 26, fontWeight: 900, color: COLORS.charcoal, fontFamily: 'Georgia, serif' }}>J</span>
           </div>
           <div style={{ color: COLORS.steelDark, fontSize: 13 }}>Loading...</div>
@@ -54,40 +49,19 @@ export default function App() {
     );
   }
 
-  // Show login if not authenticated
-  if (!currentUser) {
-    return <Login />;
-  }
+  if (!currentUser) return <Login />;
 
-  // Access denied page
   function AccessDenied() {
     return (
-      <div style={{
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        minHeight: '60vh', gap: 16
-      }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
         <div style={{ fontSize: 60 }}>🔒</div>
-        <div style={{
-          fontSize: 20, fontWeight: 700, color: COLORS.charcoal,
-          fontFamily: 'Georgia, serif'
-        }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: C.charcoal, fontFamily: 'Georgia, serif' }}>
           {isRTL ? 'ليس لديك صلاحية' : 'Access Denied'}
         </div>
-        <div style={{ fontSize: 14, color: COLORS.textMuted, textAlign: 'center', maxWidth: 300 }}>
-          {isRTL
-            ? 'ليس لديك صلاحية لعرض هذه الصفحة. تواصل مع مدير النظام.'
-            : 'You do not have permission to view this page. Contact your Super Admin.'}
+        <div style={{ fontSize: 14, color: C.textMuted, textAlign: 'center', maxWidth: 300 }}>
+          {isRTL ? 'ليس لديك صلاحية لعرض هذه الصفحة. تواصل مع مدير النظام.' : 'You do not have permission to view this page. Contact your Super Admin.'}
         </div>
-        <button
-          onClick={() => setActivePage('dashboard')}
-          style={{
-            padding: '10px 24px', borderRadius: 8, border: 'none',
-            background: `linear-gradient(135deg, ${COLORS.red}, ${COLORS.redDark})`,
-            color: COLORS.white, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
+        <button onClick={() => setActivePage('dashboard')} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           {isRTL ? 'العودة للرئيسية' : 'Go to Dashboard'}
         </button>
       </div>
@@ -95,17 +69,11 @@ export default function App() {
   }
 
   function renderPage() {
-    // User management — super admin only
     if (activePage === 'user-management') {
       if (!isSuperAdmin()) return <AccessDenied />;
       return <UserManagement />;
     }
-
-    // Check permission for all other pages
-    if (!hasPermission(activePage)) {
-      return <AccessDenied />;
-    }
-
+    if (!hasPermission(activePage)) return <AccessDenied />;
     switch (activePage) {
       case 'dashboard': return <Dashboard />;
       case 'suppliers': return <Suppliers />;
@@ -122,6 +90,8 @@ export default function App() {
       case 'purchase-orders': return <PurchaseOrders />;
       case 'returns': return <Returns />;
       case 'settings': return <Settings />;
+      case 'reports': return <Reports />;
+      case 'gifts': return <Gifts />;
       default: return <PlaceholderPage pageId={activePage} />;
     }
   }
@@ -130,7 +100,8 @@ export default function App() {
     'dashboard', 'suppliers', 'categories', 'inventory',
     'customers', 'pos', 'expenses', 'sales-report',
     'pl', 'cashflow', 'employees', 'delivery',
-    'purchase-orders', 'returns', 'settings', 'user-management'
+    'purchase-orders', 'returns', 'settings',
+    'user-management', 'reports', 'gifts'
   ];
   const isFullPage = fullPageModules.includes(activePage);
 
@@ -138,66 +109,47 @@ export default function App() {
     <div style={{
       display: 'flex', height: '100vh',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
-      background: COLORS.offWhite,
+      background: C.offWhite,
       flexDirection: isRTL ? 'row-reverse' : 'row'
     }}>
-
-      {/* SIDEBAR */}
       <Sidebar
         activePage={activePage}
         setActivePage={setActivePage}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
       />
-
-      {/* MAIN */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* TOP BAR */}
-        <TopBar
-          activePage={activePage}
-          setActivePage={setActivePage}
-        />
-
-        {/* CONTENT */}
+        <TopBar activePage={activePage} setActivePage={setActivePage} />
         <div style={{
           flex: 1, overflowY: 'auto',
           padding: activePage === 'pos' ? 0 : 28,
-          direction: isRTL ? 'rtl' : 'ltr'
+          direction: isRTL ? 'rtl' : 'ltr',
+          background: C.offWhite
         }}>
-
           {activePage !== 'pos' && activePage !== 'dashboard' && (
             <>
               <div style={{
                 height: 3,
                 background: isRTL
-                  ? `linear-gradient(270deg, ${COLORS.red}, ${COLORS.red}44, transparent)`
-                  : `linear-gradient(90deg, ${COLORS.red}, ${COLORS.red}44, transparent)`,
+                  ? `linear-gradient(270deg, ${C.red}, ${C.red}44, transparent)`
+                  : `linear-gradient(90deg, ${C.red}, ${C.red}44, transparent)`,
                 borderRadius: 2, marginBottom: 24
               }} />
               <StatCards />
             </>
           )}
-
           <div style={{
-            background: COLORS.white,
+            background: C.white,
             borderRadius: activePage === 'pos' ? 0 : 12,
-            border: activePage === 'pos' ? 'none' : `1px solid ${COLORS.border}`,
+            border: activePage === 'pos' ? 'none' : `1px solid ${C.border}`,
             minHeight: activePage === 'pos' ? '100%' : 400,
-            boxShadow: activePage === 'pos' ? 'none' : '0 1px 6px rgba(0,0,0,0.05)',
+            boxShadow: activePage === 'pos' ? 'none' : `0 1px 6px ${C.shadow}`,
             height: activePage === 'pos' ? '100%' : 'auto'
           }}>
             {!isFullPage && (
-              <div style={{
-                padding: '14px 20px',
-                borderBottom: `1px solid ${COLORS.border}`,
-                display: 'flex', alignItems: 'center', gap: 10,
-                flexDirection: isRTL ? 'row-reverse' : 'row'
-              }}>
-                <div style={{ width: 4, height: 18, background: COLORS.red, borderRadius: 2 }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoal }}>
-                  {PAGE_TITLES[activePage]}
-                </span>
+              <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                <div style={{ width: 4, height: 18, background: C.red, borderRadius: 2 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>{PAGE_TITLES[activePage]}</span>
               </div>
             )}
             {renderPage()}
