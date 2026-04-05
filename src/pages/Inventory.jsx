@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { COLORS } from '../data/store';
 import { getProducts, saveProducts, getSuppliers, getCategories, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 export default function Inventory() {
   const { t, isRTL, language } = useLanguage();
+  const { fmt } = useCurrency();
   const [products, setProducts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -128,9 +130,7 @@ export default function Inventory() {
           <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>
             {products.length} {t('totalProducts')}
             {lowStockCount > 0 && (
-              <span style={{ color: COLORS.warning, fontWeight: 600 }}>
-                {' '}· {lowStockCount} {t('lowStockAlert')}
-              </span>
+              <span style={{ color: COLORS.warning, fontWeight: 600 }}> · {lowStockCount} {t('lowStockAlert')}</span>
             )}
           </div>
         </div>
@@ -173,12 +173,10 @@ export default function Inventory() {
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
         <input
           placeholder={`${t('search')} ${t('inventory')}...`}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+          value={search} onChange={e => setSearch(e.target.value)}
           style={{
-            flex: 1, padding: '10px 14px',
-            border: `1px solid ${COLORS.border}`, borderRadius: 8,
-            fontSize: 13, color: COLORS.charcoal, outline: 'none',
+            flex: 1, padding: '10px 14px', border: `1px solid ${COLORS.border}`,
+            borderRadius: 8, fontSize: 13, color: COLORS.charcoal, outline: 'none',
             background: COLORS.white, textAlign: isRTL ? 'right' : 'left'
           }}
         />
@@ -226,29 +224,23 @@ export default function Inventory() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', overflow: 'hidden'
               }}>
-                {form.photo ? (
-                  <img src={form.photo} alt="product" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, marginBottom: 4 }}>📷</div>
-                    <div style={{ fontSize: 11, color: COLORS.textMuted }}>{t('uploadPhoto')}</div>
-                  </div>
-                )}
+                {form.photo
+                  ? <img src={form.photo} alt="product" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, marginBottom: 4 }}>📷</div>
+                      <div style={{ fontSize: 11, color: COLORS.textMuted }}>{t('uploadPhoto')}</div>
+                    </div>
+                }
               </div>
               <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: 'none' }} />
               {form.photo && (
                 <button onClick={() => setForm(f => ({ ...f, photo: '' }))} style={{
-                  marginTop: 6, fontSize: 11, color: COLORS.red,
-                  background: 'none', border: 'none', cursor: 'pointer'
-                }}>
-                  {t('removePhoto')}
-                </button>
+                  marginTop: 6, fontSize: 11, color: COLORS.red, background: 'none', border: 'none', cursor: 'pointer'
+                }}>{t('removePhoto')}</button>
               )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-              {/* Product Name */}
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('productName')} *</div>
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
@@ -259,7 +251,6 @@ export default function Inventory() {
                   }} />
               </div>
 
-              {/* Supplier */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('suppliers')} *</div>
                 <select value={form.supplierId} onChange={e => setForm({ ...form, supplierId: e.target.value, categoryId: '' })} style={{
@@ -272,7 +263,6 @@ export default function Inventory() {
                 </select>
               </div>
 
-              {/* Category */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('categories')} *</div>
                 <select value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })} style={{
@@ -285,9 +275,8 @@ export default function Inventory() {
                 </select>
               </div>
 
-              {/* Cost Price */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('costPrice')} *</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('costPrice')} * (USD)</div>
                 <input type="number" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })}
                   placeholder="0.00" style={{
                     width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
@@ -295,9 +284,8 @@ export default function Inventory() {
                   }} />
               </div>
 
-              {/* Sell Price */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('sellPrice')} *</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('sellPrice')} * (USD)</div>
                 <input type="number" value={form.sellPrice} onChange={e => setForm({ ...form, sellPrice: e.target.value })}
                   placeholder="0.00" style={{
                     width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
@@ -305,7 +293,6 @@ export default function Inventory() {
                   }} />
               </div>
 
-              {/* Margin preview */}
               {form.costPrice && form.sellPrice && (
                 <div style={{ gridColumn: '1 / -1' }}>
                   <div style={{
@@ -315,12 +302,11 @@ export default function Inventory() {
                     color: parseFloat(form.sellPrice) > parseFloat(form.costPrice) ? COLORS.success : COLORS.red
                   }}>
                     {t('profitMargin')}: {getMargin(parseFloat(form.costPrice), parseFloat(form.sellPrice))}%
-                    · {t('profitPerUnit')}: ${(parseFloat(form.sellPrice) - parseFloat(form.costPrice)).toFixed(2)}
+                    · {t('profitPerUnit')}: {fmt(parseFloat(form.sellPrice) - parseFloat(form.costPrice))}
                   </div>
                 </div>
               )}
 
-              {/* Stock */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('stockQty')} *</div>
                 <input type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })}
@@ -330,7 +316,6 @@ export default function Inventory() {
                   }} />
               </div>
 
-              {/* Low Stock Alert */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('lowStockAt')}</div>
                 <input type="number" value={form.lowStockAlert} onChange={e => setForm({ ...form, lowStockAlert: e.target.value })}
@@ -340,7 +325,6 @@ export default function Inventory() {
                   }} />
               </div>
 
-              {/* SKU */}
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('sku')}</div>
                 <input value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })}
@@ -351,7 +335,6 @@ export default function Inventory() {
                   }} />
               </div>
 
-              {/* Description */}
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('description')}</div>
                 <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
@@ -436,7 +419,8 @@ export default function Inventory() {
                   }
                   {isLow && (
                     <div style={{
-                      position: 'absolute', top: 8, right: isRTL ? 'auto' : 8, left: isRTL ? 8 : 'auto',
+                      position: 'absolute', top: 8,
+                      right: isRTL ? 'auto' : 8, left: isRTL ? 8 : 'auto',
                       background: COLORS.warning, color: COLORS.white,
                       fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4
                     }}>
@@ -445,7 +429,8 @@ export default function Inventory() {
                   )}
                   {product.sku && (
                     <div style={{
-                      position: 'absolute', bottom: 8, left: isRTL ? 'auto' : 8, right: isRTL ? 8 : 'auto',
+                      position: 'absolute', bottom: 8,
+                      left: isRTL ? 'auto' : 8, right: isRTL ? 8 : 'auto',
                       background: 'rgba(0,0,0,0.6)', color: COLORS.white,
                       fontSize: 10, padding: '2px 7px', borderRadius: 4
                     }}>
@@ -463,12 +448,12 @@ export default function Inventory() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 10, color: COLORS.textMuted }}>{t('costPrice')}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoalMid }}>${product.costPrice.toFixed(2)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoalMid }}>{fmt(product.costPrice)}</div>
                     </div>
                     <div style={{ fontSize: 16, color: COLORS.border }}>→</div>
                     <div>
                       <div style={{ fontSize: 10, color: COLORS.textMuted }}>{t('sellPrice')}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.charcoal }}>${product.sellPrice.toFixed(2)}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.charcoal }}>{fmt(product.sellPrice)}</div>
                     </div>
                     <div style={{
                       background: `${COLORS.success}15`, border: `1px solid ${COLORS.success}33`,
@@ -544,7 +529,7 @@ export default function Inventory() {
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: COLORS.textMuted }}>{t('costPrice')} / {t('sellPrice')}</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoal }}>
-                    ${product.costPrice.toFixed(2)} → ${product.sellPrice.toFixed(2)}
+                    {fmt(product.costPrice)} → {fmt(product.sellPrice)}
                   </div>
                   <div style={{ fontSize: 11, color: COLORS.success, fontWeight: 600 }}>{margin}% {t('profitMargin')}</div>
                 </div>

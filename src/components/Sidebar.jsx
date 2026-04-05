@@ -1,5 +1,6 @@
 import { COLORS } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   DashIcon, PosIcon, BoxIcon, TruckIcon, TagIcon, ClipboardIcon,
   UsersIcon, DeliveryIcon, ReturnIcon, ChartIcon, WalletIcon,
@@ -23,6 +24,7 @@ const ICON_MAP = {
   employees: TeamIcon,
   reports: ReportIcon,
   settings: SettingsIcon,
+  'user-management': UsersIcon,
 };
 
 function JangoLogo({ collapsed, t, isRTL, language }) {
@@ -74,6 +76,7 @@ function JangoLogo({ collapsed, t, isRTL, language }) {
 
 export default function Sidebar({ activePage, setActivePage, collapsed, setCollapsed }) {
   const { t, isRTL, language } = useLanguage();
+  const { hasPermission, isSuperAdmin } = useAuth();
 
   const NAV_SECTIONS = [
     {
@@ -120,9 +123,19 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
       items: [
         { id: 'reports', label: t('reports') },
         { id: 'settings', label: t('settings') },
+        ...(isSuperAdmin() ? [{ id: 'user-management', label: t('userManagement') }] : []),
       ],
     },
   ];
+
+  // Filter items by permission
+  const filteredSections = NAV_SECTIONS.map(section => ({
+    ...section,
+    items: section.items.filter(item => {
+      if (item.id === 'user-management') return isSuperAdmin();
+      return hasPermission(item.id);
+    })
+  })).filter(section => section.items.length > 0);
 
   return (
     <div style={{
@@ -158,11 +171,12 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
 
       {/* Nav Items */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 0' }}>
-        {NAV_SECTIONS.map(section => (
+        {filteredSections.map(section => (
           <div key={section.label} style={{ marginBottom: 4 }}>
             {!collapsed && (
               <div style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: language === 'ar' ? 0 : 1.5,
+                fontSize: 9, fontWeight: 700,
+                letterSpacing: language === 'ar' ? 0 : 1.5,
                 textTransform: 'uppercase', color: COLORS.charcoalMid,
                 padding: '10px 18px 4px',
                 textAlign: isRTL ? 'right' : 'left'
@@ -180,8 +194,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
                   onClick={() => setActivePage(item.id)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center',
-                    gap: 10,
-                    padding: collapsed ? '10px 0' : '9px 18px',
+                    gap: 10, padding: collapsed ? '10px 0' : '9px 18px',
                     justifyContent: collapsed ? 'center' : (isRTL ? 'flex-end' : 'flex-start'),
                     flexDirection: isRTL && !collapsed ? 'row-reverse' : 'row',
                     background: isActive
@@ -211,8 +224,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
                   </span>
                   {!collapsed && (
                     <span style={{
-                      fontSize: 13.5,
-                      fontWeight: isActive ? 600 : 400,
+                      fontSize: 13.5, fontWeight: isActive ? 600 : 400,
                       whiteSpace: 'nowrap',
                       fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'inherit'
                     }}>
@@ -252,7 +264,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
         </div>
       )}
 
-      {/* Version */}
+      {/* Version + logged in user */}
       {!collapsed && (
         <div style={{
           padding: '12px 18px',

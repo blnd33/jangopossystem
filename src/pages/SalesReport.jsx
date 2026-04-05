@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { COLORS } from '../data/store';
 import { getSales } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function SalesReport() {
   const { t, isRTL, language } = useLanguage();
+  const { fmt } = useCurrency();
   const [sales, setSales] = useState([]);
   const [view, setView] = useState('daily');
 
@@ -23,8 +25,7 @@ export default function SalesReport() {
       label: d.toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { weekday: 'short', day: 'numeric' }),
       revenue: daySales.reduce((sum, s) => sum + s.total, 0),
       transactions: daySales.length,
-      profit: daySales.reduce((sum, s) => sum + s.items.reduce((ps, item) =>
-        ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0)
+      profit: daySales.reduce((sum, s) => sum + s.items.reduce((ps, item) => ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0)
     };
   });
 
@@ -37,8 +38,7 @@ export default function SalesReport() {
       label: d.toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { month: 'short', year: '2-digit' }),
       revenue: monthSales.reduce((sum, s) => sum + s.total, 0),
       transactions: monthSales.length,
-      profit: monthSales.reduce((sum, s) => sum + s.items.reduce((ps, item) =>
-        ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0)
+      profit: monthSales.reduce((sum, s) => sum + s.items.reduce((ps, item) => ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0)
     };
   });
 
@@ -49,13 +49,11 @@ export default function SalesReport() {
       label: year,
       revenue: yearSales.reduce((sum, s) => sum + s.total, 0),
       transactions: yearSales.length,
-      profit: yearSales.reduce((sum, s) => sum + s.items.reduce((ps, item) =>
-        ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0)
+      profit: yearSales.reduce((sum, s) => sum + s.items.reduce((ps, item) => ps + (item.sellPrice - item.costPrice) * item.qty, 0), 0)
     };
   });
 
   const chartData = view === 'daily' ? dailyData : view === 'monthly' ? monthlyData : yearlyData;
-
   const totalRevenue = chartData.reduce((sum, d) => sum + d.revenue, 0);
   const totalTransactions = chartData.reduce((sum, d) => sum + d.transactions, 0);
   const totalProfit = chartData.reduce((sum, d) => sum + d.profit, 0);
@@ -92,8 +90,6 @@ export default function SalesReport() {
             {sales.length} {t('transactions')}
           </div>
         </div>
-
-        {/* View Toggle */}
         <div style={{ display: 'flex', border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden' }}>
           {['daily', 'monthly', 'yearly'].map(v => (
             <button key={v} onClick={() => setView(v)} style={{
@@ -116,73 +112,52 @@ export default function SalesReport() {
         flexDirection: isRTL ? 'row-reverse' : 'row'
       }}>
         <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-          <div style={{ fontSize: 12, color: COLORS.steelDark, letterSpacing: 1, textTransform: 'uppercase' }}>
-            {t('todayRevenue')}
-          </div>
+          <div style={{ fontSize: 12, color: COLORS.steelDark, letterSpacing: 1, textTransform: 'uppercase' }}>{t('todayRevenue')}</div>
           <div style={{ fontSize: 32, fontWeight: 800, color: COLORS.white, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif', marginTop: 4 }}>
-            ${todayRevenue.toFixed(2)}
+            {fmt(todayRevenue)}
           </div>
-          <div style={{ fontSize: 12, color: COLORS.steelDark, marginTop: 4 }}>
-            {todaySales.length} {t('transactions')}
-          </div>
+          <div style={{ fontSize: 12, color: COLORS.steelDark, marginTop: 4 }}>{todaySales.length} {t('transactions')}</div>
         </div>
         <div style={{ width: 4, height: 60, background: `linear-gradient(180deg, ${COLORS.red}, transparent)`, borderRadius: 2 }} />
         <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-          <div style={{ fontSize: 12, color: COLORS.steelDark, letterSpacing: 1, textTransform: 'uppercase' }}>
-            {t('revenue')}
-          </div>
+          <div style={{ fontSize: 12, color: COLORS.steelDark, letterSpacing: 1, textTransform: 'uppercase' }}>{t('revenue')}</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.white, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif', marginTop: 4 }}>
-            ${totalRevenue.toFixed(2)}
+            {fmt(totalRevenue)}
           </div>
-          <div style={{ fontSize: 12, color: COLORS.steelDark, marginTop: 4 }}>
-            {t(view)}
-          </div>
+          <div style={{ fontSize: 12, color: COLORS.steelDark, marginTop: 4 }}>{t(view)}</div>
         </div>
       </div>
 
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { label: t('revenue'), value: `$${totalRevenue.toFixed(2)}`, color: COLORS.success },
-          { label: t('grossProfit'), value: `$${totalProfit.toFixed(2)}`, color: COLORS.info },
+          { label: t('revenue'), value: fmt(totalRevenue), color: COLORS.success },
+          { label: t('grossProfit'), value: fmt(totalProfit), color: COLORS.info },
           { label: t('transactions'), value: totalTransactions, color: COLORS.warning },
-          { label: language === 'ar' ? 'متوسط الطلب' : 'Avg Order Value', value: `$${avgOrder.toFixed(2)}`, color: COLORS.red },
+          { label: language === 'ar' ? 'متوسط الطلب' : 'Avg Order', value: fmt(avgOrder), color: COLORS.red },
         ].map(card => (
-          <div key={card.label} style={{
-            background: COLORS.white, borderRadius: 10,
-            border: `1px solid ${COLORS.border}`, padding: '14px 16px',
-            borderTop: `3px solid ${card.color}`,
-          }}>
-            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              {card.label}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.charcoal, marginTop: 4, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-              {card.value}
-            </div>
+          <div key={card.label} style={{ background: COLORS.white, borderRadius: 10, border: `1px solid ${COLORS.border}`, padding: '14px 16px', borderTop: `3px solid ${card.color}` }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{card.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.charcoal, marginTop: 4, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{card.value}</div>
           </div>
         ))}
       </div>
 
       {/* Chart */}
-      <div style={{
-        background: COLORS.white, borderRadius: 12,
-        border: `1px solid ${COLORS.border}`, padding: '20px 24px', marginBottom: 20
-      }}>
+      <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px', marginBottom: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 16 }}>
           {t('revenue')} & {t('grossProfit')} — {t(view)}
         </div>
         {sales.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>
-            {t('noData')}
-          </div>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>{t('noData')}</div>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+              <YAxis tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v)} />
               <Tooltip
-                formatter={(value, name) => [`$${value.toFixed(2)}`, name === 'revenue' ? t('revenue') : t('grossProfit')]}
+                formatter={(value, name) => [fmt(value), name === 'revenue' ? t('revenue') : t('grossProfit')]}
                 contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }}
               />
               <Bar dataKey="revenue" fill={COLORS.charcoal} radius={[4, 4, 0, 0]} name="revenue" />
@@ -197,65 +172,39 @@ export default function SalesReport() {
 
         {/* Top Products */}
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>
-            {t('topProducts')}
-          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>{t('topProducts')}</div>
           {topProducts.length === 0 ? (
             <div style={{ color: COLORS.textMuted, fontSize: 13 }}>{t('noData')}</div>
           ) : topProducts.map((p, i) => (
-            <div key={p.name} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '8px 0',
-              borderBottom: i < topProducts.length - 1 ? `1px solid ${COLORS.offWhite}` : 'none',
-              flexDirection: isRTL ? 'row-reverse' : 'row'
-            }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: '50%',
-                background: i === 0 ? `${COLORS.red}20` : COLORS.offWhite,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700,
-                color: i === 0 ? COLORS.red : COLORS.charcoalMid
-              }}>{i + 1}</div>
+            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < topProducts.length - 1 ? `1px solid ${COLORS.offWhite}` : 'none', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: i === 0 ? `${COLORS.red}20` : COLORS.offWhite, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: i === 0 ? COLORS.red : COLORS.charcoalMid }}>{i + 1}</div>
               <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal }}>{p.name}</div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>{p.qty} {t('unitsSold')}</div>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>${p.revenue.toFixed(2)}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>{fmt(p.revenue)}</div>
             </div>
           ))}
         </div>
 
         {/* Recent Sales */}
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>
-            {t('recentSales')}
-          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>{t('recentSales')}</div>
           {sales.length === 0 ? (
             <div style={{ color: COLORS.textMuted, fontSize: 13 }}>{t('noData')}</div>
           ) : [...sales].reverse().slice(0, 6).map((sale, i) => (
-            <div key={sale.id} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '8px 0',
-              borderBottom: i < 5 ? `1px solid ${COLORS.offWhite}` : 'none',
-              flexDirection: isRTL ? 'row-reverse' : 'row'
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 8, background: `${COLORS.red}12`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 700, color: COLORS.red
-              }}>
+            <div key={sale.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < 5 ? `1px solid ${COLORS.offWhite}` : 'none', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: `${COLORS.red}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: COLORS.red }}>
                 #{sale.id.slice(-4).toUpperCase()}
               </div>
               <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal }}>{sale.customerName}</div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-                  {new Date(sale.date).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', {
-                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                  })}
+                  {new Date(sale.date).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
               <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.charcoal }}>${sale.total.toFixed(2)}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.charcoal }}>{fmt(sale.total)}</div>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, textTransform: 'capitalize' }}>{t(sale.paymentMethod) || sale.paymentMethod}</div>
               </div>
             </div>

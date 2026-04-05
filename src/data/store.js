@@ -1,3 +1,4 @@
+// ── Colors ─────────────────────────────────────────
 export const COLORS = {
   steel: "#C8CDD2",
   steelDark: "#9BA3AA",
@@ -17,6 +18,7 @@ export const COLORS = {
   info: "#2563EB",
 };
 
+// ── Page Titles ────────────────────────────────────
 export const PAGE_TITLES = {
   dashboard: "Dashboard",
   pos: "Point of Sale",
@@ -34,8 +36,10 @@ export const PAGE_TITLES = {
   employees: "Employees",
   reports: "Reports & Analytics",
   settings: "Settings",
+  "user-management": "User Management",
 };
 
+// ── Module Descriptions ────────────────────────────
 export const MODULE_DESCRIPTIONS = {
   dashboard: "Overview of daily sales, alerts, and key performance indicators.",
   pos: "Sell products, manage cart, apply discounts, and process payments.",
@@ -55,6 +59,7 @@ export const MODULE_DESCRIPTIONS = {
   settings: "Company info, currency, tax, receipt customization, and data backup.",
 };
 
+// ── Nav Sections ───────────────────────────────────
 export const NAV_SECTIONS = [
   {
     label: "Main",
@@ -103,7 +108,13 @@ export const NAV_SECTIONS = [
     ],
   },
 ];
-// ── Suppliers helpers ──────────────────────────────
+
+// ── ID Generator ───────────────────────────────────
+export function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// ── Suppliers ──────────────────────────────────────
 export function getSuppliers() {
   return JSON.parse(localStorage.getItem("jango_suppliers") || "[]");
 }
@@ -111,7 +122,7 @@ export function saveSuppliers(data) {
   localStorage.setItem("jango_suppliers", JSON.stringify(data));
 }
 
-// ── Categories helpers ─────────────────────────────
+// ── Categories ─────────────────────────────────────
 export function getCategories() {
   return JSON.parse(localStorage.getItem("jango_categories") || "[]");
 }
@@ -119,63 +130,151 @@ export function saveCategories(data) {
   localStorage.setItem("jango_categories", JSON.stringify(data));
 }
 
-// ── ID generator ───────────────────────────────────
-export function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
-// ── Products helpers ───────────────────────────────
+// ── Products ───────────────────────────────────────
 export function getProducts() {
   return JSON.parse(localStorage.getItem("jango_products") || "[]");
 }
 export function saveProducts(data) {
   localStorage.setItem("jango_products", JSON.stringify(data));
 }
-// ── Customers helpers ──────────────────────────────
+
+// ── Customers ──────────────────────────────────────
 export function getCustomers() {
   return JSON.parse(localStorage.getItem("jango_customers") || "[]");
 }
 export function saveCustomers(data) {
   localStorage.setItem("jango_customers", JSON.stringify(data));
 }
-// ── Sales helpers ──────────────────────────────────
+
+// ── Sales ──────────────────────────────────────────
 export function getSales() {
   return JSON.parse(localStorage.getItem("jango_sales") || "[]");
 }
 export function saveSales(data) {
   localStorage.setItem("jango_sales", JSON.stringify(data));
 }
-// ── Expenses helpers ───────────────────────────────
+
+// ── Expenses ───────────────────────────────────────
 export function getExpenses() {
   return JSON.parse(localStorage.getItem("jango_expenses") || "[]");
 }
 export function saveExpenses(data) {
   localStorage.setItem("jango_expenses", JSON.stringify(data));
 }
-// ── Employees helpers ──────────────────────────────
+
+// ── Employees ──────────────────────────────────────
 export function getEmployees() {
   return JSON.parse(localStorage.getItem("jango_employees") || "[]");
 }
 export function saveEmployees(data) {
   localStorage.setItem("jango_employees", JSON.stringify(data));
 }
-// ── Delivery helpers ───────────────────────────────
+
+// ── Deliveries ─────────────────────────────────────
 export function getDeliveries() {
   return JSON.parse(localStorage.getItem("jango_deliveries") || "[]");
 }
 export function saveDeliveries(data) {
   localStorage.setItem("jango_deliveries", JSON.stringify(data));
 }
-// ── Purchase Orders helpers ────────────────────────
+
+// ── Purchase Orders ────────────────────────────────
 export function getPurchaseOrders() {
   return JSON.parse(localStorage.getItem("jango_purchase_orders") || "[]");
 }
 export function savePurchaseOrders(data) {
   localStorage.setItem("jango_purchase_orders", JSON.stringify(data));
 }
-// ── Returns helpers ────────────────────────────────
+
+// ── Returns ────────────────────────────────────────
 export function getReturns() {
   return JSON.parse(localStorage.getItem("jango_returns") || "[]");
 }
 export function saveReturns(data) {
   localStorage.setItem("jango_returns", JSON.stringify(data));
+}
+
+// ── Users ──────────────────────────────────────────
+export function getUsers() {
+  const users = JSON.parse(localStorage.getItem("jango_users") || "[]");
+  if (users.length === 0) {
+    const defaultAdmin = {
+      id: "superadmin-001",
+      username: "admin",
+      password: "admin123",
+      name: "Super Admin",
+      role: "superadmin",
+      permissions: {
+        dashboard: true, pos: true, inventory: true,
+        suppliers: true, categories: true, "purchase-orders": true,
+        customers: true, delivery: true, returns: true,
+        "sales-report": true, expenses: true, pl: true,
+        cashflow: true, employees: true, reports: true, settings: true
+      },
+      createdAt: new Date().toISOString(),
+      lastLogin: null
+    };
+    localStorage.setItem("jango_users", JSON.stringify([defaultAdmin]));
+    return [defaultAdmin];
+  }
+  return users;
+}
+export function saveUsers(data) {
+  localStorage.setItem("jango_users", JSON.stringify(data));
+}
+
+// ── Current User Session ───────────────────────────
+export function getCurrentUser() {
+  return JSON.parse(localStorage.getItem("jango_current_user") || "null");
+}
+export function setCurrentUser(user) {
+  localStorage.setItem("jango_current_user", JSON.stringify(user));
+}
+export function logout() {
+  localStorage.removeItem("jango_current_user");
+}
+
+// ── Access Log ─────────────────────────────────────
+export function getAccessLog() {
+  return JSON.parse(localStorage.getItem("jango_access_log") || "[]");
+}
+export function saveAccessLog(data) {
+  localStorage.setItem("jango_access_log", JSON.stringify(data));
+}
+export function logAccess(user, action) {
+  const log = getAccessLog();
+  const entry = {
+    id: generateId(),
+    userId: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    action,
+    time: new Date().toISOString(),
+  };
+  saveAccessLog([entry, ...log].slice(0, 500));
+  return entry;
+}
+
+// ── Notifications ──────────────────────────────────
+export function getUnreadNotifications() {
+  return JSON.parse(localStorage.getItem("jango_notifications") || "[]");
+}
+export function saveNotifications(data) {
+  localStorage.setItem("jango_notifications", JSON.stringify(data));
+}
+export function addNotification(message, type = "info") {
+  const notifications = getUnreadNotifications();
+  const notification = {
+    id: generateId(),
+    message,
+    type,
+    time: new Date().toISOString(),
+    read: false,
+  };
+  saveNotifications([notification, ...notifications].slice(0, 100));
+}
+export function markAllRead() {
+  const notifications = getUnreadNotifications();
+  saveNotifications(notifications.map(n => ({ ...n, read: true })));
 }

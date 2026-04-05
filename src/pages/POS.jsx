@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { COLORS } from '../data/store';
 import {
-  getProducts, saveProducts,
-  getCustomers, saveCustomers,
-  getSales, saveSales,
-  generateId
+  getProducts, saveProducts, getCustomers, saveCustomers,
+  getSales, saveSales, generateId
 } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 export default function POS() {
   const { t, isRTL, language } = useLanguage();
+  const { fmt } = useCurrency();
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [cart, setCart] = useState([]);
@@ -74,8 +74,7 @@ export default function POS() {
     if (!amountPaid && paymentMethod !== 'installment') return alert(t('amountPaid'));
 
     const sale = {
-      id: generateId(),
-      date: new Date().toISOString(),
+      id: generateId(), date: new Date().toISOString(),
       items: cart.map(i => ({
         id: i.id, name: i.name, qty: i.qty,
         costPrice: i.costPrice, sellPrice: i.sellPrice,
@@ -188,12 +187,12 @@ export default function POS() {
                   <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal }}>{item.name}</div>
                     <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-                      {item.qty} x ${item.sellPrice.toFixed(2)}
-                      {item.itemDiscount > 0 && ` (-$${item.itemDiscount})`}
+                      {item.qty} x {fmt(item.sellPrice)}
+                      {item.itemDiscount > 0 && ` (-${fmt(item.itemDiscount)})`}
                     </div>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoal }}>
-                    ${(item.qty * item.sellPrice - (item.itemDiscount || 0)).toFixed(2)}
+                    {fmt(item.qty * item.sellPrice - (item.itemDiscount || 0))}
                   </div>
                 </div>
               ))}
@@ -202,12 +201,12 @@ export default function POS() {
             {/* Totals */}
             <div style={{ background: COLORS.offWhite, borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
               {[
-                { label: t('subtotal'), value: `$${receipt.subtotal.toFixed(2)}` },
-                receipt.discountAmount > 0 && { label: t('discount'), value: `-$${receipt.discountAmount.toFixed(2)}`, color: COLORS.success },
-                { label: t('total'), value: `$${receipt.total.toFixed(2)}`, bold: true },
-                { label: t('amountPaid'), value: `$${receipt.amountPaid.toFixed(2)}` },
-                receipt.change > 0 && { label: t('change'), value: `$${receipt.change.toFixed(2)}`, color: COLORS.success },
-                receipt.remaining > 0 && { label: t('remaining'), value: `$${receipt.remaining.toFixed(2)}`, color: COLORS.red },
+                { label: t('subtotal'), value: fmt(receipt.subtotal) },
+                receipt.discountAmount > 0 && { label: t('discount'), value: `-${fmt(receipt.discountAmount)}`, color: COLORS.success },
+                { label: t('total'), value: fmt(receipt.total), bold: true },
+                { label: t('amountPaid'), value: fmt(receipt.amountPaid) },
+                receipt.change > 0 && { label: t('change'), value: fmt(receipt.change), color: COLORS.success },
+                receipt.remaining > 0 && { label: t('remaining'), value: fmt(receipt.remaining), color: COLORS.red },
               ].filter(Boolean).map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', padding: '4px 0',
@@ -272,8 +271,7 @@ export default function POS() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
           <input
             placeholder={`${t('search')}...`}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={search} onChange={e => setSearch(e.target.value)}
             style={{
               flex: 1, padding: '9px 12px', border: `1px solid ${COLORS.border}`,
               borderRadius: 7, fontSize: 13, outline: 'none', background: COLORS.white,
@@ -325,7 +323,7 @@ export default function POS() {
                     {product.name}
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.red, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-                    ${product.sellPrice.toFixed(2)}
+                    {fmt(product.sellPrice)}
                   </div>
                 </div>
               </div>
@@ -337,7 +335,7 @@ export default function POS() {
       {/* RIGHT — Cart */}
       <div style={{ width: 360, display: 'flex', flexDirection: 'column', background: COLORS.white, flexShrink: 0 }}>
 
-        {/* Customer selector */}
+        {/* Customer */}
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${COLORS.border}`, position: 'relative' }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>
             {t('customer')}
@@ -359,8 +357,7 @@ export default function POS() {
           {selectedCustomer && (
             <button onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); }} style={{
               position: 'absolute',
-              right: isRTL ? 'auto' : 24,
-              left: isRTL ? 24 : 'auto',
+              right: isRTL ? 'auto' : 24, left: isRTL ? 24 : 'auto',
               top: '50%', transform: 'translateY(4px)',
               background: 'none', border: 'none', cursor: 'pointer', color: COLORS.textMuted, fontSize: 16
             }}>✕</button>
@@ -400,16 +397,11 @@ export default function POS() {
               background: COLORS.offWhite, borderRadius: 9,
               padding: '10px 12px', marginBottom: 8, border: `1px solid ${COLORS.border}`
             }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-                flexDirection: isRTL ? 'row-reverse' : 'row'
-              }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoal, flex: 1, paddingRight: isRTL ? 0 : 8, paddingLeft: isRTL ? 8 : 0 }}>
                   {item.name}
                 </div>
-                <button onClick={() => removeFromCart(item.id)} style={{
-                  background: 'none', border: 'none', color: COLORS.red, cursor: 'pointer', fontSize: 14
-                }}>✕</button>
+                <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: COLORS.red, cursor: 'pointer', fontSize: 14 }}>✕</button>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
@@ -419,28 +411,23 @@ export default function POS() {
                     background: COLORS.white, cursor: 'pointer', fontSize: 14,
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>−</button>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal, minWidth: 24, textAlign: 'center' }}>
-                    {item.qty}
-                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal, minWidth: 24, textAlign: 'center' }}>{item.qty}</span>
                   <button onClick={() => updateQty(item.id, item.qty + 1)} style={{
                     width: 26, height: 26, borderRadius: 5, border: `1px solid ${COLORS.border}`,
                     background: COLORS.white, cursor: 'pointer', fontSize: 14,
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>+</button>
                 </div>
-                <span style={{ fontSize: 11, color: COLORS.textMuted }}>${item.sellPrice.toFixed(2)}</span>
+                <span style={{ fontSize: 11, color: COLORS.textMuted }}>{fmt(item.sellPrice)}</span>
                 <span style={{ marginLeft: isRTL ? 0 : 'auto', marginRight: isRTL ? 'auto' : 0, fontSize: 14, fontWeight: 700, color: COLORS.charcoal }}>
-                  ${(item.sellPrice * item.qty).toFixed(2)}
+                  {fmt(item.sellPrice * item.qty)}
                 </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
                 <span style={{ fontSize: 11, color: COLORS.textMuted }}>{t('itemDiscount')}</span>
                 <input type="number" value={item.itemDiscount || ''} onChange={e => updateItemDiscount(item.id, e.target.value)}
-                  placeholder="0" style={{
-                    width: 60, padding: '3px 7px', border: `1px solid ${COLORS.border}`,
-                    borderRadius: 5, fontSize: 12, outline: 'none'
-                  }} />
+                  placeholder="0" style={{ width: 60, padding: '3px 7px', border: `1px solid ${COLORS.border}`, borderRadius: 5, fontSize: 12, outline: 'none' }} />
               </div>
             </div>
           ))}
@@ -448,6 +435,7 @@ export default function POS() {
 
         {/* Checkout Panel */}
         <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: '14px 16px' }}>
+
           {/* Discount */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
             <input type="number" placeholder={t('discount')} value={discount} onChange={e => setDiscount(e.target.value)} style={{
@@ -466,9 +454,9 @@ export default function POS() {
           {/* Totals */}
           <div style={{ marginBottom: 12 }}>
             {[
-              { label: t('subtotal'), value: `$${subtotal.toFixed(2)}` },
-              discountAmount > 0 && { label: t('discount'), value: `-$${discountAmount.toFixed(2)}`, color: COLORS.success },
-              { label: t('total'), value: `$${total.toFixed(2)}`, bold: true },
+              { label: t('subtotal'), value: fmt(subtotal) },
+              discountAmount > 0 && { label: t('discount'), value: `-${fmt(discountAmount)}`, color: COLORS.success },
+              { label: t('total'), value: fmt(total), bold: true },
             ].filter(Boolean).map(row => (
               <div key={row.label} style={{
                 display: 'flex', justifyContent: 'space-between', padding: '3px 0',
@@ -514,8 +502,8 @@ export default function POS() {
               }} />
             {amountPaid && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                {change > 0 && <span style={{ fontSize: 12, color: COLORS.success, fontWeight: 600 }}>{t('change')}: ${change.toFixed(2)}</span>}
-                {remaining > 0 && <span style={{ fontSize: 12, color: COLORS.red, fontWeight: 600 }}>{t('remaining')}: ${remaining.toFixed(2)}</span>}
+                {change > 0 && <span style={{ fontSize: 12, color: COLORS.success, fontWeight: 600 }}>{t('change')}: {fmt(change)}</span>}
+                {remaining > 0 && <span style={{ fontSize: 12, color: COLORS.red, fontWeight: 600 }}>{t('remaining')}: {fmt(remaining)}</span>}
               </div>
             )}
           </div>
@@ -540,7 +528,7 @@ export default function POS() {
             boxShadow: cart.length > 0 ? `0 3px 12px ${COLORS.red}44` : 'none',
             letterSpacing: 0.5
           }}>
-            {t('completeSale')} — ${total.toFixed(2)}
+            {t('completeSale')} — {fmt(total)}
           </button>
         </div>
       </div>

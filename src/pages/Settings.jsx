@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { COLORS } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 const DEFAULT_SETTINGS = {
   companyName: 'Jango',
@@ -25,6 +26,7 @@ function saveSettingsData(data) {
 
 export default function Settings() {
   const { t, isRTL, language } = useLanguage();
+  const { currencySettings, updateCurrency } = useCurrency();
   const [settings, setSettings] = useState(getSettings());
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('company');
@@ -153,7 +155,7 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* Company Info Tab */}
+      {/* ── COMPANY INFO TAB ── */}
       {activeTab === 'company' && (
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 28 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.charcoal, marginBottom: 20 }}>
@@ -190,7 +192,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Finance & Tax Tab */}
+      {/* ── FINANCE & TAX TAB ── */}
       {activeTab === 'finance' && (
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 28 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.charcoal, marginBottom: 20 }}>
@@ -198,42 +200,179 @@ export default function Settings() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
-            {/* Currency Symbol */}
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 6 }}>{t('currencySymbol')}</div>
-              <input value={settings.currency} onChange={e => setSettings({ ...settings, currency: e.target.value })}
-                placeholder="$" style={{
-                  width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                  borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none', boxSizing: 'border-box'
-                }} />
-            </div>
-
-            {/* Currency Code */}
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 6 }}>{t('currencyCode')}</div>
-              <select value={settings.currencyCode} onChange={e => setSettings({ ...settings, currencyCode: e.target.value })} style={{
-                width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                background: COLORS.white, boxSizing: 'border-box'
-              }}>
-                <option value="USD">USD — US Dollar</option>
-                <option value="IQD">IQD — {language === 'ar' ? 'دينار عراقي' : 'Iraqi Dinar'}</option>
-                <option value="EUR">EUR — Euro</option>
-                <option value="GBP">GBP — British Pound</option>
-                <option value="TRY">TRY — Turkish Lira</option>
-                <option value="SAR">SAR — {language === 'ar' ? 'ريال سعودي' : 'Saudi Riyal'}</option>
-                <option value="AED">AED — {language === 'ar' ? 'درهم إماراتي' : 'UAE Dirham'}</option>
-              </select>
-            </div>
-
             {/* Low Stock Default */}
-            <div>
+            <div style={{ gridColumn: '1 / -1' }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 6 }}>{t('lowStockDefault')}</div>
               <input type="number" value={settings.lowStockDefault}
                 onChange={e => setSettings({ ...settings, lowStockDefault: parseInt(e.target.value) || 5 })} style={{
                   width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
                   borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none', boxSizing: 'border-box'
                 }} />
+            </div>
+
+            {/* ── CURRENCY SECTION ── */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{
+                fontSize: 14, fontWeight: 700, color: COLORS.charcoal,
+                marginBottom: 14, paddingBottom: 10,
+                borderBottom: `1px solid ${COLORS.border}`,
+                textAlign: isRTL ? 'right' : 'left'
+              }}>
+                {language === 'ar' ? '💰 إعدادات العملة' : '💰 Currency Settings'}
+              </div>
+
+              {/* Currency Toggle Buttons */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 10, textAlign: isRTL ? 'right' : 'left' }}>
+                  {language === 'ar' ? 'اختر العملة' : 'Select Currency'}
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                  {[
+                    { code: 'USD', symbol: '$', label: language === 'ar' ? 'دولار أمريكي' : 'US Dollar', sublabel: 'USD', flag: '🇺🇸' },
+                    { code: 'IQD', symbol: 'IQD', label: language === 'ar' ? 'دينار عراقي' : 'Iraqi Dinar', sublabel: 'IQD', flag: '🇮🇶' },
+                  ].map(curr => (
+                    <button
+                      key={curr.code}
+                      onClick={() => updateCurrency({ ...currencySettings, currency: curr.code, symbol: curr.symbol })}
+                      style={{
+                        flex: 1, padding: '18px 20px', borderRadius: 12, cursor: 'pointer',
+                        border: `2px solid ${currencySettings.currency === curr.code ? COLORS.red : COLORS.border}`,
+                        background: currencySettings.currency === curr.code ? `${COLORS.red}08` : COLORS.white,
+                        transition: 'all 0.2s', textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: 28, marginBottom: 6 }}>{curr.flag}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: currencySettings.currency === curr.code ? COLORS.red : COLORS.charcoal, marginBottom: 2 }}>
+                        {curr.label}
+                      </div>
+                      <div style={{ fontSize: 12, color: COLORS.textMuted }}>{curr.sublabel}</div>
+                      {currencySettings.currency === curr.code && (
+                        <div style={{
+                          marginTop: 8, fontSize: 11, fontWeight: 700,
+                          color: COLORS.white, background: COLORS.red,
+                          padding: '3px 12px', borderRadius: 20, display: 'inline-block'
+                        }}>
+                          {language === 'ar' ? '✓ محدد حالياً' : '✓ Currently Active'}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Exchange Rate Box */}
+              <div style={{
+                background: `${COLORS.info}08`,
+                border: `1px solid ${COLORS.info}33`,
+                borderRadius: 14, padding: '24px 28px'
+              }}>
+                <div style={{ textAlign: isRTL ? 'right' : 'left', marginBottom: 16 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.info, marginBottom: 4 }}>
+                    📊 {language === 'ar' ? 'سعر الصرف اليوم' : "Today's Exchange Rate"}
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.textMuted }}>
+                    {language === 'ar'
+                      ? 'أدخل كم يساوي الدولار الواحد بالدينار العراقي اليوم — يتغير يومياً'
+                      : 'Enter how much 1 US Dollar equals in Iraqi Dinar today — updates daily'}
+                  </div>
+                </div>
+
+                {/* Rate Input */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom: 20
+                }}>
+                  <div style={{
+                    background: COLORS.white, borderRadius: 10,
+                    padding: '12px 18px', border: `1px solid ${COLORS.border}`,
+                    fontSize: 16, fontWeight: 800, color: COLORS.charcoal,
+                    flexShrink: 0, whiteSpace: 'nowrap'
+                  }}>
+                    $1 USD
+                  </div>
+                  <div style={{ fontSize: 20, color: COLORS.textMuted, flexShrink: 0 }}>＝</div>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      value={currencySettings.exchangeRate}
+                      onChange={e => {
+                        const rate = parseFloat(e.target.value) || 0;
+                        updateCurrency({ ...currencySettings, exchangeRate: rate });
+                      }}
+                      placeholder="1480"
+                      style={{
+                        width: '100%', padding: '14px 16px',
+                        border: `2px solid ${COLORS.info}66`,
+                        borderRadius: 10, fontSize: 22, fontWeight: 800,
+                        color: COLORS.charcoal, outline: 'none',
+                        textAlign: 'center', boxSizing: 'border-box',
+                        background: COLORS.white,
+                        transition: 'border 0.15s'
+                      }}
+                      onFocus={e => e.target.style.borderColor = COLORS.info}
+                      onBlur={e => e.target.style.borderColor = `${COLORS.info}66`}
+                    />
+                  </div>
+                  <div style={{
+                    background: COLORS.white, borderRadius: 10,
+                    padding: '12px 18px', border: `1px solid ${COLORS.border}`,
+                    fontSize: 16, fontWeight: 800, color: COLORS.charcoal,
+                    flexShrink: 0
+                  }}>
+                    IQD
+                  </div>
+                </div>
+
+                {/* Quick conversion examples */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: isRTL ? 'right' : 'left' }}>
+                    {language === 'ar' ? 'أمثلة سريعة' : 'Quick Examples'}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {[1, 10, 50, 100].map(usd => (
+                      <div key={usd} style={{
+                        background: COLORS.white, borderRadius: 10,
+                        padding: '12px 8px', textAlign: 'center',
+                        border: `1px solid ${COLORS.border}`
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.success, marginBottom: 4 }}>
+                          ${usd}
+                        </div>
+                        <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>↓</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>
+                          {(usd * currencySettings.exchangeRate).toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: 10, color: COLORS.textMuted }}>IQD</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div style={{
+                  background: COLORS.white, borderRadius: 10, padding: '14px 18px',
+                  border: `1px solid ${COLORS.info}33`,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  flexDirection: isRTL ? 'row-reverse' : 'row'
+                }}>
+                  <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoal }}>
+                      {language === 'ar' ? '🖥️ كيف ستظهر الأسعار في النظام' : '🖥️ How prices appear in the system'}
+                    </div>
+                    <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                      {language === 'ar' ? 'مثال: منتج بسعر 100 دولار' : 'Example: A product priced at $100'}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: 22, fontWeight: 800, color: COLORS.red,
+                    fontFamily: 'Georgia, serif'
+                  }}>
+                    {currencySettings.currency === 'IQD'
+                      ? `${(100 * currencySettings.exchangeRate).toLocaleString()} IQD`
+                      : '$100.00'}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Tax Toggle */}
@@ -277,7 +416,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Receipt Tab */}
+      {/* ── RECEIPT TAB ── */}
       {activeTab === 'receipt' && (
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 28 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.charcoal, marginBottom: 20 }}>
@@ -318,15 +457,18 @@ export default function Settings() {
                 </div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                    <span>{language === 'ar' ? 'منتج ١ x2' : 'Item 1 x2'}</span><span>$100.00</span>
+                    <span>{language === 'ar' ? 'منتج ١ x2' : 'Item 1 x2'}</span>
+                    <span>{currencySettings.currency === 'IQD' ? `${(100 * currencySettings.exchangeRate).toLocaleString()} IQD` : '$100.00'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                    <span>{language === 'ar' ? 'منتج ٢ x1' : 'Item 2 x1'}</span><span>$50.00</span>
+                    <span>{language === 'ar' ? 'منتج ٢ x1' : 'Item 2 x1'}</span>
+                    <span>{currencySettings.currency === 'IQD' ? `${(50 * currencySettings.exchangeRate).toLocaleString()} IQD` : '$50.00'}</span>
                   </div>
                 </div>
                 <div style={{ borderTop: `1px dashed ${COLORS.border}`, paddingTop: 8, marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                    <span>{t('total')}</span><span>$150.00</span>
+                    <span>{t('total')}</span>
+                    <span>{currencySettings.currency === 'IQD' ? `${(150 * currencySettings.exchangeRate).toLocaleString()} IQD` : '$150.00'}</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', fontSize: 10, color: COLORS.textMuted }}>
@@ -339,7 +481,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Data & Backup Tab */}
+      {/* ── DATA & BACKUP TAB ── */}
       {activeTab === 'data' && (
         <div style={{ display: 'grid', gap: 16 }}>
 
