@@ -278,3 +278,20 @@ export function markAllRead() {
   const notifications = getUnreadNotifications();
   saveNotifications(notifications.map(n => ({ ...n, read: true })));
 }
+export function getCurrencySettings() {
+  const defaults = { currency: 'USD', symbol: '$', exchangeRate: 1480 };
+  return JSON.parse(localStorage.getItem('jango_currency') || JSON.stringify(defaults));
+}
+
+export function saveCurrencySettings(data) {
+  localStorage.setItem('jango_currency', JSON.stringify(data));
+}
+
+export function formatMoney(amount, currencySettings) {
+  if (!currencySettings) currencySettings = getCurrencySettings();
+  if (currencySettings.currency === 'IQD') {
+    const iqd = amount * currencySettings.exchangeRate;
+    return `${Math.round(iqd).toLocaleString()} IQD`;
+  }
+  return `$${parseFloat(amount).toFixed(2)}`;
+}
