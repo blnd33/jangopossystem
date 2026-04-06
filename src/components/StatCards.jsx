@@ -1,13 +1,14 @@
-import { COLORS } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { useWindowSize } from '../hooks/useWindowSize';
 import { getSales, getProducts, getDeliveries } from '../data/store';
 
 export default function StatCards() {
   const { t } = useLanguage();
   const { fmt } = useCurrency();
   const C = useThemeColors();
+  const { isMobile } = useWindowSize();
 
   const sales = getSales();
   const products = getProducts();
@@ -27,21 +28,27 @@ export default function StatCards() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+      gap: isMobile ? 10 : 16,
+      marginBottom: isMobile ? 16 : 28
+    }}>
       {stats.map(card => (
         <div key={card.label} style={{
           background: C.white, borderRadius: 10,
-          border: `1px solid ${C.border}`, padding: '16px 18px',
+          border: `1px solid ${C.border}`,
+          padding: isMobile ? '12px 14px' : '16px 18px',
           borderTop: `3px solid ${card.color}`,
           boxShadow: `0 1px 4px ${C.shadow}`
         }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>
+          <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>
             {card.label}
           </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: C.charcoal, margin: '6px 0 2px', fontFamily: 'Georgia, serif' }}>
+          <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 800, color: C.charcoal, margin: '6px 0 2px', fontFamily: 'Georgia, serif' }}>
             {card.value}
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted }}>{card.sub}</div>
+          <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted }}>{card.sub}</div>
         </div>
       ))}
     </div>

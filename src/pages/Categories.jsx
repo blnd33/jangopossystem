@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react';
 import { COLORS } from '../data/store';
-import { getSuppliers, getCategories, saveCategories, generateId } from '../data/store';
+import { getCategories, saveCategories, getSuppliers, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useThemeColors } from '../hooks/useThemeColors';
+
+const CAT_COLORS = [
+  '#CC1B1B', '#2563EB', '#16A34A', '#D97706', '#8B5CF6',
+  '#EC4899', '#0891B2', '#059669', '#DC2626', '#7C3AED'
+];
 
 export default function Categories() {
   const { t, isRTL, language } = useLanguage();
+  const C = useThemeColors();
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [selectedSupplier, setSelectedSupplier] = useState('all');
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ name: '', supplierId: '', description: '' });
+  const [filterSupplier, setFilterSupplier] = useState('all');
+  const [form, setForm] = useState({
+    name: '', supplierId: '', color: CAT_COLORS[0], notes: ''
+  });
 
   useEffect(() => {
     setCategories(getCategories());
@@ -21,7 +30,7 @@ export default function Categories() {
 
   function handleSave() {
     if (!form.name.trim()) return alert(t('categoryName') + ' ' + t('required'));
-    if (!form.supplierId) return alert(t('selectSupplier'));
+
     let updated;
     if (editingId) {
       updated = categories.map(c => c.id === editingId ? { ...c, ...form } : c);
@@ -33,9 +42,14 @@ export default function Categories() {
     resetForm();
   }
 
-  function handleEdit(cat) {
-    setForm({ name: cat.name, supplierId: cat.supplierId, description: cat.description || '' });
-    setEditingId(cat.id);
+  function handleEdit(category) {
+    setForm({
+      name: category.name,
+      supplierId: category.supplierId || '',
+      color: category.color || CAT_COLORS[0],
+      notes: category.notes || ''
+    });
+    setEditingId(category.id);
     setShowForm(true);
   }
 
@@ -47,27 +61,39 @@ export default function Categories() {
   }
 
   function resetForm() {
-    setForm({ name: '', supplierId: '', description: '' });
+    setForm({ name: '', supplierId: '', color: CAT_COLORS[0], notes: '' });
     setEditingId(null);
     setShowForm(false);
   }
 
   function getSupplierName(id) {
-    return suppliers.find(s => s.id === id)?.name || t('noData');
+    return suppliers.find(s => s.id === id)?.name || (language === 'ar' ? 'بدون مورد' : 'No supplier');
   }
 
   const filtered = categories.filter(c => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
-    const matchSupplier = selectedSupplier === 'all' || c.supplierId === selectedSupplier;
+    const matchSupplier = filterSupplier === 'all' || c.supplierId === filterSupplier;
     return matchSearch && matchSupplier;
   });
 
-  const grouped = suppliers.map(s => ({
-    supplier: s,
-    cats: filtered.filter(c => c.supplierId === s.id)
-  })).filter(g => selectedSupplier === 'all' ? g.cats.length > 0 : g.supplier.id === selectedSupplier);
+  // Group by supplier
+  const grouped = {};
+  filtered.forEach(cat => {
+    const key = cat.supplierId || 'none';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(cat);
+  });
 
+  const opt = language === 'ar' ? 'اختياري' : 'Optional';
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
+
+  const inputStyle = {
+    width: '100%', padding: '9px 12px',
+    border: `1px solid ${C.border}`, borderRadius: 7,
+    fontSize: 13, color: C.charcoal, outline: 'none',
+    boxSizing: 'border-box', background: C.white,
+    textAlign: isRTL ? 'right' : 'left'
+  };
 
   return (
     <div style={{ padding: 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
@@ -75,152 +101,93 @@ export default function Categories() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
             {t('categories')}
           </div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>
-            {categories.length} {t('categories')} · {suppliers.length} {t('suppliers')}
+          <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>
+            {categories.length} {t('categories')}
           </div>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          style={{
-            background: `linear-gradient(135deg, ${COLORS.red}, ${COLORS.redDark})`,
-            border: 'none', borderRadius: 8, padding: '10px 20px',
-            color: COLORS.white, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', boxShadow: `0 2px 8px ${COLORS.red}44`
-          }}
-        >
+        <button onClick={() => { resetForm(); setShowForm(true); }} style={{
+          background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`,
+          border: 'none', borderRadius: 8, padding: '10px 20px',
+          color: '#fff', fontSize: 13, fontWeight: 600,
+          cursor: 'pointer', boxShadow: `0 2px 8px ${C.red}44`
+        }}>
           {t('addCategory')}
         </button>
       </div>
 
-      {/* No suppliers warning */}
-      {suppliers.length === 0 && (
-        <div style={{
-          background: `${COLORS.warning}15`, border: `1px solid ${COLORS.warning}44`,
-          borderRadius: 8, padding: '12px 16px', marginBottom: 20,
-          fontSize: 13, color: COLORS.warning, fontWeight: 500
-        }}>
-          ⚠️ {t('noSuppliers')}
-        </div>
-      )}
-
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
         <input
           placeholder={`${t('search')} ${t('categories')}...`}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            flex: 1, padding: '10px 14px',
-            border: `1px solid ${COLORS.border}`, borderRadius: 8,
-            fontSize: 13, color: COLORS.charcoal, outline: 'none',
-            background: COLORS.white, textAlign: isRTL ? 'right' : 'left'
-          }}
+          value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.charcoal, outline: 'none', background: C.white, textAlign: isRTL ? 'right' : 'left' }}
         />
-        <select
-          value={selectedSupplier}
-          onChange={e => setSelectedSupplier(e.target.value)}
-          style={{
-            padding: '10px 14px', border: `1px solid ${COLORS.border}`,
-            borderRadius: 8, fontSize: 13, color: COLORS.charcoal,
-            outline: 'none', background: COLORS.white, cursor: 'pointer'
-          }}
-        >
-          <option value="all">{t('all')} {t('suppliers')}</option>
+        <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} style={{ padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.charcoal, outline: 'none', background: C.white, cursor: 'pointer' }}>
+          <option value="all">{t('all')}</option>
+          <option value="none">{language === 'ar' ? 'بدون مورد' : 'No supplier'}</option>
           {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
-      {/* Form Modal */}
+      {/* Add/Edit Modal */}
       {showForm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{
-            background: COLORS.white, borderRadius: 12,
-            padding: 28, width: 440,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-            direction: isRTL ? 'rtl' : 'ltr'
-          }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, marginBottom: 20, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: C.white, borderRadius: 14, padding: 28, width: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.charcoal, marginBottom: 20, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
               {editingId ? `${t('edit')} ${t('categories')}` : t('addCategory')}
             </div>
 
-            {/* Supplier */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>
-                {t('suppliers')} *
+            <div style={{ display: 'grid', gap: 14 }}>
+
+              {/* Category Name - REQUIRED */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('categoryName')} *</div>
+                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('categoryName')} style={inputStyle} />
               </div>
-              <select
-                value={form.supplierId}
-                onChange={e => setForm({ ...form, supplierId: e.target.value })}
-                style={{
-                  width: '100%', padding: '9px 12px',
-                  border: `1px solid ${COLORS.border}`, borderRadius: 7,
-                  fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                  background: COLORS.white, boxSizing: 'border-box'
-                }}
-              >
-                <option value="">{t('selectSupplier')}</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+
+              {/* Supplier - OPTIONAL */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>
+                  {t('suppliers')} <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>({opt})</span>
+                </div>
+                <select value={form.supplierId} onChange={e => setForm({ ...form, supplierId: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">{language === 'ar' ? 'بدون مورد' : 'No supplier'}</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+
+              {/* Color Picker */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>
+                  {language === 'ar' ? 'لون الفئة' : 'Category Color'}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {CAT_COLORS.map(color => (
+                    <button key={color} onClick={() => setForm({ ...form, color })} style={{
+                      width: 32, height: 32, borderRadius: '50%', border: form.color === color ? `3px solid ${C.charcoal}` : '3px solid transparent',
+                      background: color, cursor: 'pointer', outline: 'none',
+                      boxShadow: form.color === color ? '0 0 0 2px #fff, 0 0 0 4px ' + color : 'none',
+                      transition: 'all 0.15s'
+                    }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes - OPTIONAL */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>
+                  {t('notes')} <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>({opt})</span>
+                </div>
+                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder={t('notes')} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
             </div>
 
-            {/* Category Name */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>
-                {t('categoryName')} *
-              </div>
-              <input
-                value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder={t('categoryName')}
-                style={{
-                  width: '100%', padding: '9px 12px',
-                  border: `1px solid ${COLORS.border}`, borderRadius: 7,
-                  fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                  boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left'
-                }}
-              />
-            </div>
-
-            {/* Description */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>
-                {t('description')}
-              </div>
-              <textarea
-                value={form.description}
-                onChange={e => setForm({ ...form, description: e.target.value })}
-                placeholder={t('description')}
-                rows={3}
-                style={{
-                  width: '100%', padding: '9px 12px',
-                  border: `1px solid ${COLORS.border}`, borderRadius: 7,
-                  fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                  resize: 'vertical', boxSizing: 'border-box',
-                  textAlign: isRTL ? 'right' : 'left'
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-              <button onClick={resetForm} style={{
-                padding: '9px 20px', borderRadius: 7, border: `1px solid ${COLORS.border}`,
-                background: COLORS.white, color: COLORS.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500
-              }}>
-                {t('cancel')}
-              </button>
-              <button onClick={handleSave} style={{
-                padding: '9px 24px', borderRadius: 7, border: 'none',
-                background: `linear-gradient(135deg, ${COLORS.red}, ${COLORS.redDark})`,
-                color: COLORS.white, fontSize: 13, cursor: 'pointer', fontWeight: 600
-              }}>
-                {editingId ? t('save') : t('addCategory')}
-              </button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+              <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>{t('cancel')}</button>
+              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('addCategory')}</button>
             </div>
           </div>
         </div>
@@ -228,109 +195,85 @@ export default function Categories() {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{
-            background: COLORS.white, borderRadius: 12, padding: 28,
-            width: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center',
-            direction: isRTL ? 'rtl' : 'ltr'
-          }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: C.white, borderRadius: 12, padding: 28, width: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center', direction: isRTL ? 'rtl' : 'ltr' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.charcoal, marginBottom: 8 }}>
-              {t('deleteCategory')}
-            </div>
-            <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 24 }}>
-              {t('permanentDelete')}
-            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, marginBottom: 8 }}>{t('deleteCategory')}</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>{t('permanentDelete')}</div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-              <button onClick={() => setDeleteConfirm(null)} style={{
-                padding: '9px 24px', borderRadius: 7, border: `1px solid ${COLORS.border}`,
-                background: COLORS.white, color: COLORS.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500
-              }}>
-                {t('cancel')}
-              </button>
-              <button onClick={() => handleDelete(deleteConfirm)} style={{
-                padding: '9px 24px', borderRadius: 7, border: 'none',
-                background: COLORS.red, color: COLORS.white, fontSize: 13, cursor: 'pointer', fontWeight: 600
-              }}>
-                {t('yesDelete')}
-              </button>
+              <button onClick={() => setDeleteConfirm(null)} style={{ padding: '9px 24px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>{t('cancel')}</button>
+              <button onClick={() => handleDelete(deleteConfirm)} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: C.red, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{t('yesDelete')}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Categories grouped by supplier */}
-      {categories.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.textMuted, fontSize: 14 }}>
-          {t('noCategories')}
-        </div>
-      ) : grouped.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.textMuted, fontSize: 14 }}>
-          {t('noData')}
+      {/* Categories List — Grouped by Supplier */}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: C.textMuted, fontSize: 14 }}>
+          {search ? t('noData') : t('noCategories')}
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 20 }}>
-          {grouped.map(({ supplier, cats }) => (
-            <div key={supplier.id} style={{
-              background: COLORS.white, borderRadius: 12,
-              border: `1px solid ${COLORS.border}`, overflow: 'hidden',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
-            }}>
-              {/* Supplier Header */}
+          {Object.entries(grouped).map(([supplierId, cats]) => (
+            <div key={supplierId}>
+              {/* Supplier Group Header */}
               <div style={{
-                padding: '12px 20px',
-                background: `linear-gradient(${isRTL ? '270deg' : '90deg'}, ${COLORS.charcoal}, ${COLORS.charcoalLight})`,
-                display: 'flex', alignItems: 'center', gap: 10,
+                fontSize: 12, fontWeight: 700, color: C.textMuted,
+                textTransform: 'uppercase', letterSpacing: 1,
+                marginBottom: 10, paddingBottom: 6,
+                borderBottom: `1px solid ${C.border}`,
+                display: 'flex', alignItems: 'center', gap: 8,
                 flexDirection: isRTL ? 'row-reverse' : 'row'
               }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: `${COLORS.red}33`, border: `2px solid ${COLORS.red}66`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: 700, color: COLORS.red
-                }}>
-                  {supplier.name.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.white }}>{supplier.name}</div>
-                  <div style={{ fontSize: 11, color: COLORS.steelDark }}>
-                    {cats.length} {t('categories')}
-                  </div>
-                </div>
+                <span>🚚</span>
+                <span>{supplierId === 'none' ? (language === 'ar' ? 'بدون مورد' : 'No Supplier') : getSupplierName(supplierId)}</span>
+                <span style={{ background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 20, padding: '1px 8px', fontSize: 10, color: C.textMuted }}>
+                  {cats.length}
+                </span>
               </div>
 
-              {/* Categories */}
-              <div style={{ padding: 16, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {cats.map(cat => (
-                  <div key={cat.id} style={{
-                    background: COLORS.offWhite, border: `1px solid ${COLORS.border}`,
-                    borderRadius: 8, padding: '10px 14px',
-                    display: 'flex', alignItems: 'center', gap: 10, minWidth: 160,
-                    flexDirection: isRTL ? 'row-reverse' : 'row'
-                  }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.red, flexShrink: 0 }} />
-                    <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.charcoal }}>{cat.name}</div>
-                      {cat.description && (
-                        <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>{cat.description}</div>
-                      )}
+              {/* Category Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                {cats.map(category => (
+                  <div key={category.id} style={{
+                    background: C.white, borderRadius: 10,
+                    border: `1px solid ${C.border}`,
+                    padding: '14px 16px',
+                    boxShadow: `0 1px 4px ${C.shadow}`,
+                    borderLeft: !isRTL ? `4px solid ${category.color || C.red}` : 'none',
+                    borderRight: isRTL ? `4px solid ${category.color || C.red}` : 'none',
+                    transition: 'transform 0.15s'
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                        background: `${category.color || C.red}20`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 18
+                      }}>
+                        🏷️
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                        <button onClick={() => handleEdit(category)} style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 11, cursor: 'pointer' }}>{t('edit')}</button>
+                        <button onClick={() => setDeleteConfirm(category.id)} style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.red}44`, background: `${C.red}11`, color: C.red, fontSize: 11, cursor: 'pointer' }}>{t('delete')}</button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                      <button onClick={() => handleEdit(cat)} style={{
-                        padding: '4px 10px', borderRadius: 5, border: `1px solid ${COLORS.border}`,
-                        background: COLORS.white, color: COLORS.charcoalMid, fontSize: 11, cursor: 'pointer'
-                      }}>
-                        {t('edit')}
-                      </button>
-                      <button onClick={() => setDeleteConfirm(cat.id)} style={{
-                        padding: '4px 10px', borderRadius: 5, border: `1px solid ${COLORS.red}44`,
-                        background: `${COLORS.red}11`, color: COLORS.red, fontSize: 11, cursor: 'pointer'
-                      }}>
-                        {t('delete')}
-                      </button>
+
+                    <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: C.charcoal, marginBottom: 4 }}>{category.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: category.color || C.red, flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, color: C.textMuted }}>
+                          {supplierId === 'none' ? (language === 'ar' ? 'بدون مورد' : 'No supplier') : getSupplierName(supplierId)}
+                        </span>
+                      </div>
+                      {category.notes && (
+                        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, fontStyle: 'italic' }}>{category.notes}</div>
+                      )}
                     </div>
                   </div>
                 ))}

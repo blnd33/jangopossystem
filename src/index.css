@@ -7,9 +7,17 @@
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   transition: background 0.3s, color 0.3s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── LIGHT MODE (default) ── */
+/* ── Viewport fix for mobile ── */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── LIGHT MODE ── */
 :root, [data-theme="light"] {
   --bg-primary: #FFFFFF;
   --bg-secondary: #F4F5F6;
@@ -51,18 +59,18 @@ body {
   --overlay: rgba(0,0,0,0.75);
 }
 
-/* Scrollbar */
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Smooth transitions */
+/* ── Smooth transitions ── */
 *, input, select, textarea, button {
   transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
-/* Input autofill dark mode fix */
+/* ── Input autofill dark fix ── */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
@@ -71,6 +79,63 @@ input:-webkit-autofill:focus {
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/* ── Mobile touch improvements ── */
+@media (max-width: 639px) {
+  button, input, select, textarea {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better touch targets */
+  button {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Prevent text selection on buttons */
+  button {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Safe area for notch phones */
+  .mobile-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ── Print styles ── */
 @media print {
   .no-print { display: none !important; }
+  @page { size: A4; margin: 15mm; }
+}
+
+/* ── Mobile slide-up cart ── */
+.cart-drawer {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Sidebar drawer overlay ── */
+.sidebar-overlay {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Mobile modal ── */
+@media (max-width: 639px) {
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 90vh !important;
+  }
 }
