@@ -1,261 +1,201 @@
 import { useState, useEffect } from 'react';
 import { COLORS } from '../data/store';
-import { getSales, getExpenses } from '../data/store';
+import { getSales, getExpenses, getReturns } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useThemeColors } from '../hooks/useThemeColors';
+import { useWindowSize } from '../hooks/useWindowSize';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function CashFlow() {
   const { t, isRTL, language } = useLanguage();
   const { fmt } = useCurrency();
+  const C = useThemeColors();
+  const { isMobile } = useWindowSize();
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [period, setPeriod] = useState('month');
+  const [returns, setReturns] = useState([]);
+  const [period, setPeriod] = useState('monthly');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
   useEffect(() => {
     setSales(getSales());
     setExpenses(getExpenses());
+    setReturns(getReturns());
   }, []);
 
-  function buildDailyFlow() {
-    let days = [];
-    if (period === 'month') {
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
-      days = Array.from({ length: daysInMonth }, (_, i) => {
-        const day = String(i + 1).padStart(2, '0');
-        return `${selectedMonth}-${day}`;
-      });
-    } else if (period === 'year') {
-      days = Array.from({ length: 12 }, (_, i) => {
-        const month = String(i + 1).padStart(2, '0');
-        return `${selectedYear}-${month}`;
-      });
-    } else {
-      const allDates = [
-        ...sales.map(s => s.date.slice(0, 7)),
-        ...expenses.map(e => e.date.slice(0, 7))
-      ];
-      days = [...new Set(allDates)].sort();
-    }
-
-    let runningBalance = 0;
-    return days.map(dateStr => {
-      const isMonth = period !== 'month';
-      const daySales = sales.filter(s => isMonth ? s.date.startsWith(dateStr) : s.date.split('T')[0] === dateStr);
-      const dayExpenses = expenses.filter(e => isMonth ? e.date.startsWith(dateStr) : e.date === dateStr);
-      const inflow = daySales.reduce((sum, s) => sum + s.amountPaid, 0);
-      const outflow = dayExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const net = inflow - outflow;
-      runningBalance += net;
-
-      const label = period === 'month'
-        ? dateStr.split('-')[2]
-        : period === 'year'
-          ? new Date(dateStr + '-01').toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { month: 'short' })
-          : dateStr;
-
-      return {
-        label,
-        inflow: parseFloat(inflow.toFixed(2)),
-        outflow: parseFloat(outflow.toFixed(2)),
-        net: parseFloat(net.toFixed(2)),
-        balance: parseFloat(runningBalance.toFixed(2)),
-      };
-    });
+  function filterByPeriod(items, dateKey) {
+    if (period === 'monthly') return items.filter(i => (i[dateKey] || '').startsWith(selectedMonth));
+    if (period === 'yearly') return items.filter(i => (i[dateKey] || '').startsWith(selectedYear));
+    return items;
   }
 
-  const flowData = buildDailyFlow();
-  const totalInflow = flowData.reduce((sum, d) => sum + d.inflow, 0);
-  const totalOutflow = flowData.reduce((sum, d) => sum + d.outflow, 0);
-  const netFlow = totalInflow - totalOutflow;
-  const endingBalance = flowData.length > 0 ? flowData[flowData.length - 1].balance : 0;
+  const filteredSales = filterByPeriod(sales, 'date');
+  const filteredExpenses = filterByPeriod(expenses, 'date');
+  const filteredReturns = filterByPeriod(returns, 'date');
 
-  const months = Array.from({ length: 24 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return d.toISOString().slice(0, 7);
-  });
+  const totalIn = filteredSales.reduce((sum, s) => sum + s.amountPaid, 0);
+  const totalOut = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalRefunds = filteredReturns.filter(r => r.status === 'Approved' && r.returnType === 'Refund').reduce((sum, r) => sum + r.refundAmount, 0);
+  const netFlow = totalIn - totalOut - totalRefunds;
 
+  const dailyData = (() => {
+    const days = {};
+    filteredSales.forEach(s => {
+      const day = (s.date || '').split('T')[0];
+      if (!days[day]) days[day] = { label: day, in: 0, out: 0 };
+      days[day].in += s.amountPaid;
+    });
+    filteredExpenses.forEach(e => {
+      const day = e.date || '';
+      if (!days[day]) days[day] = { label: day, in: 0, out: 0 };
+      days[day].out += e.amount;
+    });
+    let running = 0;
+    return Object.values(days).sort((a, b) => a.label.localeCompare(b.label)).map(d => {
+      running += d.in - d.out;
+      return {
+        label: d.label.slice(5),
+        in: parseFloat(d.in.toFixed(2)),
+        out: parseFloat(d.out.toFixed(2)),
+        net: parseFloat(running.toFixed(2)),
+      };
+    });
+  })();
+
+  const months = Array.from({ length: 24 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
   const years = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
-
-  const paymentBreakdown = sales.reduce((acc, s) => {
-    const method = s.paymentMethod || 'cash';
-    if (!acc[method]) acc[method] = { count: 0, amount: 0 };
-    acc[method].count += 1;
-    acc[method].amount += s.total;
-    return acc;
-  }, {});
-
-  const METHOD_COLORS = {
-    cash: COLORS.success, card: COLORS.info,
-    transfer: COLORS.warning, installment: '#8B5CF6',
-  };
-
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
 
   return (
-    <div style={{ padding: 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
+    <div style={{ padding: isMobile ? 14 : 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-            {t('cashflow')}
-          </div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>
-            {t('moneyIn')} vs {t('moneyOut')}
-          </div>
-        </div>
+      <div style={{ marginBottom: isMobile ? 14 : 20 }}>
+        <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{t('cashflow')}</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{language === 'ar' ? 'تتبع حركة الأموال' : 'Track money in and out'}</div>
+      </div>
 
-        {/* Period selector */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-          <div style={{ display: 'flex', border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden' }}>
-            {['month', 'year', 'all'].map(p => (
-              <button key={p} onClick={() => setPeriod(p)} style={{
-                padding: '8px 16px', border: 'none', cursor: 'pointer',
-                background: period === p ? COLORS.charcoal : COLORS.white,
-                color: period === p ? COLORS.white : COLORS.charcoalMid,
-                fontSize: 12, fontWeight: period === p ? 600 : 400
-              }}>
-                {p === 'all' ? t('allTime') : t(p)}
-              </button>
-            ))}
-          </div>
-          {period === 'month' && (
-            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ padding: '8px 12px', border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: COLORS.white, cursor: 'pointer' }}>
-              {months.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          )}
-          {period === 'year' && (
-            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} style={{ padding: '8px 12px', border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: COLORS.white, cursor: 'pointer' }}>
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          )}
+      {/* Period Selector */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+        <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+          {[
+            { id: 'monthly', label: language === 'ar' ? 'شهري' : 'Monthly' },
+            { id: 'yearly', label: language === 'ar' ? 'سنوي' : 'Yearly' },
+            { id: 'all', label: language === 'ar' ? 'الكل' : 'All Time' },
+          ].map(p => (
+            <button key={p.id} onClick={() => setPeriod(p.id)} style={{ padding: isMobile ? '7px 12px' : '8px 16px', border: 'none', cursor: 'pointer', background: period === p.id ? C.charcoal : C.white, color: period === p.id ? '#fff' : C.charcoalMid, fontSize: 12, fontWeight: period === p.id ? 600 : 400 }}>
+              {p.label}
+            </button>
+          ))}
         </div>
+        {period === 'monthly' && (
+          <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ padding: '7px 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.white, cursor: 'pointer', color: C.charcoal }}>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
+        {period === 'yearly' && (
+          <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} style={{ padding: '7px 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.white, cursor: 'pointer', color: C.charcoal }}>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
         {[
-          { label: t('moneyIn'), value: fmt(totalInflow), color: COLORS.success, sub: t('totalInflow') },
-          { label: t('moneyOut'), value: fmt(totalOutflow), color: COLORS.red, sub: t('totalOutflow') },
-          { label: t('netFlow'), value: fmt(netFlow), color: netFlow >= 0 ? COLORS.success : COLORS.red, sub: netFlow >= 0 ? t('positive') : t('negative') },
-          { label: t('endingBalance'), value: fmt(endingBalance), color: COLORS.info, sub: t('runningTotal') },
+          { label: t('moneyIn'), value: fmt(totalIn), color: C.success, icon: '⬇️' },
+          { label: t('moneyOut'), value: fmt(totalOut), color: C.red, icon: '⬆️' },
+          { label: language === 'ar' ? 'مبالغ مستردة' : 'Refunds', value: fmt(totalRefunds), color: C.warning, icon: '🔄' },
+          { label: t('netFlow'), value: fmt(netFlow), color: netFlow >= 0 ? C.success : C.red, icon: netFlow >= 0 ? '📈' : '📉' },
         ].map(card => (
-          <div key={card.label} style={{ background: COLORS.white, borderRadius: 10, border: `1px solid ${COLORS.border}`, padding: '14px 16px', borderTop: `3px solid ${card.color}` }}>
-            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{card.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: card.color, marginTop: 4, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{card.value}</div>
-            <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>{card.sub}</div>
+          <div key={card.label} style={{ background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, padding: isMobile ? '12px 14px' : '14px 16px', borderTop: `3px solid ${card.color}`, boxShadow: `0 1px 4px ${C.shadow}` }}>
+            <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{card.icon} {card.label}</div>
+            <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 800, color: card.color, marginTop: 4 }}>{card.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Chart */}
-      <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px', marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 4 }}>{t('cashFlowTime')}</div>
-        <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16 }}>
-          {t('moneyIn')} · {t('moneyOut')} · {t('endingBalance')}
+      {/* Net Flow Banner */}
+      <div style={{
+        background: netFlow >= 0 ? `linear-gradient(135deg, ${C.success}20, ${C.success}08)` : `linear-gradient(135deg, ${C.red}20, ${C.red}08)`,
+        border: `1px solid ${netFlow >= 0 ? C.success : C.red}44`,
+        borderRadius: 12, padding: isMobile ? '14px 16px' : '18px 24px',
+        marginBottom: isMobile ? 14 : 20, textAlign: 'center'
+      }}>
+        <div style={{ fontSize: isMobile ? 11 : 13, color: C.textMuted, marginBottom: 4 }}>
+          {netFlow >= 0 ? (language === 'ar' ? '✅ تدفق نقدي إيجابي' : '✅ Positive Cash Flow') : (language === 'ar' ? '⚠️ تدفق نقدي سلبي' : '⚠️ Negative Cash Flow')}
         </div>
-        {flowData.every(d => d.inflow === 0 && d.outflow === 0) ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted, fontSize: 13 }}>{t('noDataPeriod')}</div>
+        <div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 900, color: netFlow >= 0 ? C.success : C.red }}>
+          {fmt(netFlow)}
+        </div>
+        <div style={{ fontSize: isMobile ? 11 : 12, color: C.textMuted, marginTop: 4 }}>
+          {language === 'ar' ? `الوارد ${fmt(totalIn)} − الصادر ${fmt(totalOut + totalRefunds)}` : `In ${fmt(totalIn)} − Out ${fmt(totalOut + totalRefunds)}`}
+        </div>
+      </div>
+
+      {/* Cash Flow Chart */}
+      <div style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.border}`, padding: isMobile ? 14 : '20px 24px', marginBottom: isMobile ? 14 : 20, boxShadow: `0 1px 4px ${C.shadow}` }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.charcoal, marginBottom: 12 }}>{t('cashFlowTime')}</div>
+        {dailyData.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px 0', color: C.textMuted, fontSize: 13 }}>{t('noData')}</div>
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={flowData}>
+          <ResponsiveContainer width="100%" height={isMobile ? 160 : 240}>
+            <AreaChart data={dailyData}>
               <defs>
-                <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
+                <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={C.success} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={C.success} stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="outflowGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.red} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={COLORS.red} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.info} stopOpacity={0.2} />
-                  <stop offset="95%" stopColor={COLORS.info} stopOpacity={0} />
+                <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={C.info} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={C.info} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v)} />
-              <Tooltip
-                formatter={(v, n) => [fmt(v), n]}
-                contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }}
-              />
-              <Area type="monotone" dataKey="inflow" stroke={COLORS.success} strokeWidth={2} fill="url(#inflowGrad)" name={t('moneyIn')} />
-              <Area type="monotone" dataKey="outflow" stroke={COLORS.red} strokeWidth={2} fill="url(#outflowGrad)" name={t('moneyOut')} />
-              <Area type="monotone" dataKey="balance" stroke={COLORS.info} strokeWidth={2} fill="url(#balanceGrad)" name={t('endingBalance')} strokeDasharray="5 5" />
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: isMobile ? 9 : 11, fill: C.textMuted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: isMobile ? 9 : 11, fill: C.textMuted }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v)} width={isMobile ? 40 : 60} />
+              <Tooltip formatter={(v, n) => [fmt(v), n]} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, background: C.white, color: C.charcoal }} />
+              <Area type="monotone" dataKey="in" stroke={C.success} fill="url(#colorIn)" strokeWidth={2} name={t('moneyIn')} />
+              <Area type="monotone" dataKey="net" stroke={C.info} fill="url(#colorNet)" strokeWidth={2} name={t('netFlow')} />
             </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* Bottom Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-
-        {/* Payment Method Breakdown */}
-        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>{t('paymentMethods')}</div>
-          {Object.keys(paymentBreakdown).length === 0 ? (
-            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>{t('noData')}</div>
-          ) : Object.entries(paymentBreakdown).map(([method, data]) => {
-            const color = METHOD_COLORS[method] || COLORS.charcoalMid;
-            const pct = totalInflow > 0 ? ((data.amount / totalInflow) * 100).toFixed(1) : 0;
-            return (
-              <div key={method} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal, textTransform: 'capitalize' }}>
-                    {t(method) || method}
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>
-                    {fmt(data.amount)} ({pct}%)
-                  </span>
-                </div>
-                <div style={{ height: 6, background: COLORS.offWhite, borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.5s' }} />
-                </div>
-                <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3, textAlign: isRTL ? 'right' : 'left' }}>
-                  {data.count} {t('transactions')}
-                </div>
-              </div>
-            );
-          })}
+      {/* Flow Summary Table */}
+      <div style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden', boxShadow: `0 1px 4px ${C.shadow}` }}>
+        <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+          <div style={{ width: 4, height: 18, background: C.red, borderRadius: 2 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>{t('flowSummary')}</span>
         </div>
-
-        {/* Flow Table */}
-        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: '20px 24px' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.charcoal, marginBottom: 14 }}>{t('flowSummary')}</div>
-          <div style={{ overflowY: 'auto', maxHeight: 280 }}>
-            {flowData.filter(d => d.inflow > 0 || d.outflow > 0).length === 0 ? (
-              <div style={{ color: COLORS.textMuted, fontSize: 13 }}>{t('noDataPeriod')}</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, direction: isRTL ? 'rtl' : 'ltr' }}>
-                <thead>
-                  <tr style={{ borderBottom: `2px solid ${COLORS.border}` }}>
-                    {[t('period'), t('in'), t('out'), t('net')].map(h => (
-                      <th key={h} style={{ padding: '6px 8px', textAlign: h === t('period') ? (isRTL ? 'right' : 'left') : 'right', color: COLORS.textMuted, fontWeight: 600, letterSpacing: 0.5 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {flowData.filter(d => d.inflow > 0 || d.outflow > 0).map((row, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${COLORS.offWhite}`, background: i % 2 === 0 ? 'none' : `${COLORS.offWhite}66` }}>
-                      <td style={{ padding: '7px 8px', color: COLORS.charcoal, fontWeight: 500, textAlign: isRTL ? 'right' : 'left' }}>{row.label}</td>
-                      <td style={{ padding: '7px 8px', textAlign: 'right', color: COLORS.success, fontWeight: 500 }}>{fmt(row.inflow)}</td>
-                      <td style={{ padding: '7px 8px', textAlign: 'right', color: COLORS.red, fontWeight: 500 }}>{fmt(row.outflow)}</td>
-                      <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700, color: row.net >= 0 ? COLORS.success : COLORS.red }}>
-                        {row.net >= 0 ? '+' : '-'}{fmt(Math.abs(row.net))}
-                      </td>
-                    </tr>
+        {dailyData.length === 0 ? (
+          <div style={{ padding: '30px 20px', textAlign: 'center', color: C.textMuted }}>{t('noData')}</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isMobile ? 11 : 13 }}>
+              <thead>
+                <tr style={{ background: C.offWhite }}>
+                  {[t('period'), t('moneyIn'), t('moneyOut'), t('netFlow'), t('runningTotal')].map(h => (
+                    <th key={h} style={{ padding: isMobile ? '8px 10px' : '10px 14px', textAlign: isRTL ? 'right' : 'left', fontWeight: 600, color: C.textMuted, fontSize: isMobile ? 10 : 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                   ))}
-                </tbody>
-              </table>
-            )}
+                </tr>
+              </thead>
+              <tbody>
+                {dailyData.slice(-10).map((row, i) => (
+                  <tr key={row.label} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : `${C.offWhite}66` }}>
+                    <td style={{ padding: isMobile ? '8px 10px' : '10px 14px', color: C.charcoal, fontWeight: 500 }}>{row.label}</td>
+                    <td style={{ padding: isMobile ? '8px 10px' : '10px 14px', color: C.success, fontWeight: 600 }}>{fmt(row.in)}</td>
+                    <td style={{ padding: isMobile ? '8px 10px' : '10px 14px', color: C.red, fontWeight: 600 }}>{fmt(row.out)}</td>
+                    <td style={{ padding: isMobile ? '8px 10px' : '10px 14px', color: (row.in - row.out) >= 0 ? C.success : C.red, fontWeight: 600 }}>{fmt(row.in - row.out)}</td>
+                    <td style={{ padding: isMobile ? '8px 10px' : '10px 14px', color: row.net >= 0 ? C.info : C.red, fontWeight: 700 }}>{fmt(row.net)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

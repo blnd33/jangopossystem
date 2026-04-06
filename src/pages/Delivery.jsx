@@ -1,58 +1,47 @@
 import { useState, useEffect } from 'react';
 import { COLORS } from '../data/store';
-import { getDeliveries, saveDeliveries, getCustomers, getEmployees, getSales, generateId } from '../data/store';
+import { getDeliveries, saveDeliveries, getCustomers, getEmployees, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
+import { useThemeColors } from '../hooks/useThemeColors';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const STATUSES = ['Pending', 'Out for Delivery', 'Delivered', 'Failed'];
 
 const STATUS_COLORS = {
-  Pending: { bg: `${COLORS.warning}15`, border: `${COLORS.warning}44`, text: COLORS.warning },
-  'Out for Delivery': { bg: `${COLORS.info}15`, border: `${COLORS.info}44`, text: COLORS.info },
-  Delivered: { bg: `${COLORS.success}15`, border: `${COLORS.success}44`, text: COLORS.success },
-  Failed: { bg: `${COLORS.red}15`, border: `${COLORS.red}44`, text: COLORS.red },
+  'Pending': { bg: '#FFF7ED', border: '#FED7AA', text: '#C2410C' },
+  'Out for Delivery': { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' },
+  'Delivered': { bg: '#F0FDF4', border: '#BBF7D0', text: '#15803D' },
+  'Failed': { bg: '#FFF1F2', border: '#FECDD3', text: '#BE123C' },
 };
 
 export default function Delivery() {
   const { t, isRTL, language } = useLanguage();
+  const C = useThemeColors();
+  const { isMobile } = useWindowSize();
   const [deliveries, setDeliveries] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [viewDelivery, setViewDelivery] = useState(null);
-  const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({
-    customerId: '', customerName: '', address: '',
+    customerId: '', customerName: '', deliveryAddress: '',
     scheduledDate: new Date().toISOString().split('T')[0],
     driverId: '', status: 'Pending',
-    installationRequired: false, installationStatus: 'Not Required',
-    saleId: '', items: '', notes: '', deliveredDate: ''
+    installationRequired: false, notes: ''
   });
 
   useEffect(() => {
     setDeliveries(getDeliveries());
     setCustomers(getCustomers());
-    setEmployees(getEmployees().filter(e => e.status === 'Active'));
+    setEmployees(getEmployees().filter(e => e.role === 'Driver' || e.status === 'Active'));
   }, []);
-
-  function getStatusLabel(status) {
-    const labels = {
-      Pending: t('pending'),
-      'Out for Delivery': t('outForDelivery'),
-      Delivered: t('delivered'),
-      Failed: t('failed'),
-    };
-    return labels[status] || status;
-  }
 
   function handleSave() {
     if (!form.customerName.trim()) return alert(t('customers') + ' ' + t('required'));
-    if (!form.address.trim()) return alert(t('deliveryAddress') + ' ' + t('required'));
-    if (!form.scheduledDate) return alert(t('scheduledDate') + ' ' + t('required'));
-
+    if (!form.deliveryAddress.trim()) return alert(t('deliveryAddress') + ' ' + t('required'));
     let updated;
     if (editingId) {
       updated = deliveries.map(d => d.id === editingId ? { ...d, ...form } : d);
@@ -64,24 +53,25 @@ export default function Delivery() {
     resetForm();
   }
 
+  function handleStatusChange(id, status) {
+    const updated = deliveries.map(d => d.id === id ? { ...d, status } : d);
+    saveDeliveries(updated);
+    setDeliveries(updated);
+  }
+
   function handleEdit(delivery) {
     setForm({
       customerId: delivery.customerId || '',
-      customerName: delivery.customerName,
-      address: delivery.address,
-      scheduledDate: delivery.scheduledDate,
+      customerName: delivery.customerName || '',
+      deliveryAddress: delivery.deliveryAddress || '',
+      scheduledDate: delivery.scheduledDate || new Date().toISOString().split('T')[0],
       driverId: delivery.driverId || '',
-      status: delivery.status,
+      status: delivery.status || 'Pending',
       installationRequired: delivery.installationRequired || false,
-      installationStatus: delivery.installationStatus || 'Not Required',
-      saleId: delivery.saleId || '',
-      items: delivery.items || '',
-      notes: delivery.notes || '',
-      deliveredDate: delivery.deliveredDate || ''
+      notes: delivery.notes || ''
     });
     setEditingId(delivery.id);
     setShowForm(true);
-    setViewDelivery(null);
   }
 
   function handleDelete(id) {
@@ -89,271 +79,128 @@ export default function Delivery() {
     saveDeliveries(updated);
     setDeliveries(updated);
     setDeleteConfirm(null);
-    setViewDelivery(null);
-  }
-
-  function handleStatusChange(id, newStatus) {
-    const updated = deliveries.map(d => {
-      if (d.id === id) {
-        return {
-          ...d, status: newStatus,
-          deliveredDate: newStatus === 'Delivered' ? new Date().toISOString().split('T')[0] : d.deliveredDate
-        };
-      }
-      return d;
-    });
-    saveDeliveries(updated);
-    setDeliveries(updated);
-    if (viewDelivery?.id === id) setViewDelivery(updated.find(d => d.id === id));
   }
 
   function resetForm() {
-    setForm({
-      customerId: '', customerName: '', address: '',
-      scheduledDate: new Date().toISOString().split('T')[0],
-      driverId: '', status: 'Pending',
-      installationRequired: false, installationStatus: 'Not Required',
-      saleId: '', items: '', notes: '', deliveredDate: ''
-    });
+    setForm({ customerId: '', customerName: '', deliveryAddress: '', scheduledDate: new Date().toISOString().split('T')[0], driverId: '', status: 'Pending', installationRequired: false, notes: '' });
     setEditingId(null);
     setShowForm(false);
   }
 
-  function getDriverName(id) {
-    return employees.find(e => e.id === id)?.name || t('noDriverAssigned');
-  }
+  function getDriverName(id) { return employees.find(e => e.id === id)?.name || t('noDriverAssigned'); }
 
   const filtered = deliveries.filter(d => {
-    const matchSearch =
-      d.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      d.address.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || d.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchSearch = d.customerName?.toLowerCase().includes(search.toLowerCase()) || d.deliveryAddress?.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
   });
 
   const pendingCount = deliveries.filter(d => d.status === 'Pending').length;
   const outCount = deliveries.filter(d => d.status === 'Out for Delivery').length;
-  const deliveredCount = deliveries.filter(d => d.status === 'Delivered').length;
-  const failedCount = deliveries.filter(d => d.status === 'Failed').length;
+  const opt = language === 'ar' ? 'اختياري' : 'Optional';
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
 
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 7,
+    fontSize: 13, color: C.charcoal, outline: 'none', boxSizing: 'border-box',
+    background: C.white, textAlign: isRTL ? 'right' : 'left'
+  };
+
   return (
-    <div style={{ padding: 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
+    <div style={{ padding: isMobile ? 14 : 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 14 : 20 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-            {t('delivery')}
-          </div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>
-            {deliveries.length} · {pendingCount} {t('pending')}
+          <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{t('delivery')}</div>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+            {pendingCount} {t('pending')} · {outCount} {t('outForDelivery')}
           </div>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }} style={{
-          background: `linear-gradient(135deg, ${COLORS.red}, ${COLORS.redDark})`,
-          border: 'none', borderRadius: 8, padding: '10px 20px',
-          color: COLORS.white, fontSize: 13, fontWeight: 600,
-          cursor: 'pointer', boxShadow: `0 2px 8px ${COLORS.red}44`
-        }}>
-          {t('newDelivery')}
+        <button onClick={() => { resetForm(); setShowForm(true); }} style={{ background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, border: 'none', borderRadius: 8, padding: isMobile ? '9px 14px' : '10px 20px', color: '#fff', fontSize: isMobile ? 12 : 13, fontWeight: 600, cursor: 'pointer', boxShadow: `0 2px 8px ${C.red}44` }}>
+          {isMobile ? '+ ' + t('add') : t('newDelivery')}
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: t('pending'), value: pendingCount, color: COLORS.warning },
-          { label: t('outForDelivery'), value: outCount, color: COLORS.info },
-          { label: t('delivered'), value: deliveredCount, color: COLORS.success },
-          { label: t('failed'), value: failedCount, color: COLORS.red },
-        ].map(card => (
-          <div key={card.label} onClick={() => setFilterStatus(
-            card.label === t('pending') ? 'Pending' :
-            card.label === t('outForDelivery') ? 'Out for Delivery' :
-            card.label === t('delivered') ? 'Delivered' : 'Failed'
-          )} style={{
-            background: COLORS.white, borderRadius: 10,
-            border: `1px solid ${COLORS.border}`, padding: '14px 16px',
-            cursor: 'pointer', borderTop: `3px solid ${card.color}`,
+      {/* Status Filter */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 4, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+        {['all', ...STATUSES].map(status => (
+          <button key={status} onClick={() => setFilterStatus(status)} style={{
+            padding: '7px 14px', borderRadius: 20, border: `1px solid ${filterStatus === status ? C.red : C.border}`,
+            background: filterStatus === status ? `${C.red}12` : C.white,
+            color: filterStatus === status ? C.red : C.textMuted,
+            fontSize: 12, fontWeight: filterStatus === status ? 600 : 400,
+            cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
           }}>
-            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              {card.label}
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: card.color, marginTop: 4, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-              {card.value}
-            </div>
-          </div>
+            {status === 'all' ? t('all') : status}
+            {status !== 'all' && (
+              <span style={{ marginLeft: 5, background: filterStatus === status ? C.red : C.border, color: filterStatus === status ? '#fff' : C.textMuted, borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                {deliveries.filter(d => d.status === status).length}
+              </span>
+            )}
+          </button>
         ))}
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-        <input
-          placeholder={`${t('search')}...`}
-          value={search} onChange={e => setSearch(e.target.value)}
-          style={{
-            flex: 1, padding: '10px 14px', border: `1px solid ${COLORS.border}`,
-            borderRadius: 8, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-            background: COLORS.white, textAlign: isRTL ? 'right' : 'left'
-          }}
-        />
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{
-          padding: '10px 14px', border: `1px solid ${COLORS.border}`,
-          borderRadius: 8, fontSize: 13, color: COLORS.charcoal,
-          outline: 'none', background: COLORS.white, cursor: 'pointer'
-        }}>
-          <option value="all">{t('all')}</option>
-          {STATUSES.map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}
-        </select>
+      {/* Search */}
+      <div style={{ marginBottom: 16 }}>
+        <input placeholder={`${t('search')}...`} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.charcoal, outline: 'none', background: C.white, boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left' }} />
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Modal */}
       {showForm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: 20
-        }}>
-          <div style={{
-            background: COLORS.white, borderRadius: 14,
-            padding: 28, width: 540, maxHeight: '90vh',
-            overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
-            direction: isRTL ? 'rtl' : 'ltr'
-          }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, marginBottom: 20, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-              {editingId ? `${t('edit')} ${t('delivery')}` : t('newDelivery')}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-              {/* Customer */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('customers')} *</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000, padding: isMobile ? 0 : 20 }}>
+          <div style={{ background: C.white, borderRadius: isMobile ? '16px 16px 0 0' : 14, padding: isMobile ? '20px 16px' : 28, width: isMobile ? '100%' : 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, marginBottom: 18 }}>{editingId ? t('edit') : t('newDelivery')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+              <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('customers')} *</div>
                 <select value={form.customerId} onChange={e => {
-                  const customer = customers.find(c => c.id === e.target.value);
-                  setForm({ ...form, customerId: e.target.value, customerName: customer?.name || '', address: customer?.address || form.address });
-                }} style={{
-                  width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                  borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                  background: COLORS.white, boxSizing: 'border-box'
-                }}>
-                  <option value="">{t('selectSupplier')}</option>
+                  const c = customers.find(c => c.id === e.target.value);
+                  setForm({ ...form, customerId: e.target.value, customerName: c?.name || '' });
+                }} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">{language === 'ar' ? 'اختر عميلاً' : 'Select customer'}</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>)}
                 </select>
-                <input value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })}
-                  placeholder={t('manualName')} style={{
-                    width: '100%', padding: '9px 12px', marginTop: 6,
-                    border: `1px solid ${COLORS.border}`, borderRadius: 7,
-                    fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                    boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left'
-                  }} />
-              </div>
-
-              {/* Address */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('deliveryAddress')} *</div>
-                <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-                  placeholder={t('deliveryAddress')} style={{
-                    width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                    borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                    boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left'
-                  }} />
-              </div>
-
-              {/* Scheduled Date */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('scheduledDate')} *</div>
-                <input type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} style={{
-                  width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                  borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none', boxSizing: 'border-box'
-                }} />
-              </div>
-
-              {/* Driver */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('assignDriver')}</div>
-                <select value={form.driverId} onChange={e => setForm({ ...form, driverId: e.target.value })} style={{
-                  width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                  borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                  background: COLORS.white, boxSizing: 'border-box'
-                }}>
-                  <option value="">{t('noDriverAssigned')}</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('status')}</div>
-                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={{
-                  width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                  borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                  background: COLORS.white, boxSizing: 'border-box'
-                }}>
-                  {STATUSES.map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}
-                </select>
-              </div>
-
-              {/* Items */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('items')}</div>
-                <input value={form.items} onChange={e => setForm({ ...form, items: e.target.value })}
-                  placeholder={t('items')} style={{
-                    width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                    borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                    boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left'
-                  }} />
-              </div>
-
-              {/* Installation */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                  <input type="checkbox" id="installation" checked={form.installationRequired}
-                    onChange={e => setForm({
-                      ...form, installationRequired: e.target.checked,
-                      installationStatus: e.target.checked ? 'Pending' : 'Not Required'
-                    })}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                  <label htmlFor="installation" style={{ fontSize: 13, color: COLORS.charcoal, cursor: 'pointer' }}>
-                    {t('installationRequired')}
-                  </label>
-                </div>
-                {form.installationRequired && (
-                  <select value={form.installationStatus} onChange={e => setForm({ ...form, installationStatus: e.target.value })} style={{
-                    width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                    borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                    background: COLORS.white, boxSizing: 'border-box'
-                  }}>
-                    <option value="Pending">{language === 'ar' ? 'التركيب معلق' : 'Installation Pending'}</option>
-                    <option value="Scheduled">{language === 'ar' ? 'التركيب مجدول' : 'Installation Scheduled'}</option>
-                    <option value="Completed">{language === 'ar' ? 'التركيب مكتمل' : 'Installation Completed'}</option>
-                  </select>
+                {!form.customerId && (
+                  <input value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} placeholder={language === 'ar' ? 'أو اكتب الاسم يدوياً' : 'Or type name manually'} style={{ ...inputStyle, marginTop: 6 }} />
                 )}
               </div>
-
-              {/* Notes */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.charcoalMid, marginBottom: 5 }}>{t('notes')}</div>
-                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                  placeholder={t('notes')} rows={3} style={{
-                    width: '100%', padding: '9px 12px', border: `1px solid ${COLORS.border}`,
-                    borderRadius: 7, fontSize: 13, color: COLORS.charcoal, outline: 'none',
-                    resize: 'vertical', boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left'
-                  }} />
+              <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('deliveryAddress')} *</div>
+                <textarea value={form.deliveryAddress} onChange={e => setForm({ ...form, deliveryAddress: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('scheduledDate')}</div>
+                <input type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('assignDriver')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
+                <select value={form.driverId} onChange={e => setForm({ ...form, driverId: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">{t('noDriverAssigned')}</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('status')}</div>
+                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                <div onClick={() => setForm({ ...form, installationRequired: !form.installationRequired })} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, background: form.installationRequired ? `${C.info}12` : C.offWhite, border: `1px solid ${form.installationRequired ? C.info + '44' : C.border}`, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 4, background: form.installationRequired ? C.info : C.white, border: `2px solid ${form.installationRequired ? C.info : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', flexShrink: 0 }}>{form.installationRequired ? '✓' : ''}</div>
+                  <span style={{ fontSize: 13, color: C.charcoal }}>🔧 {t('installationRequired')}</span>
+                </div>
+              </div>
+              <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('notes')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
+                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
               </div>
             </div>
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-              <button onClick={resetForm} style={{
-                padding: '9px 20px', borderRadius: 7, border: `1px solid ${COLORS.border}`,
-                background: COLORS.white, color: COLORS.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500
-              }}>{t('cancel')}</button>
-              <button onClick={handleSave} style={{
-                padding: '9px 24px', borderRadius: 7, border: 'none',
-                background: `linear-gradient(135deg, ${COLORS.red}, ${COLORS.redDark})`,
-                color: COLORS.white, fontSize: 13, cursor: 'pointer', fontWeight: 600
-              }}>{editingId ? t('save') : t('newDelivery')}</button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+              <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
+              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('newDelivery')}</button>
             </div>
           </div>
         </div>
@@ -361,215 +208,58 @@ export default function Delivery() {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{
-            background: COLORS.white, borderRadius: 12, padding: 28,
-            width: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center',
-            direction: isRTL ? 'rtl' : 'ltr'
-          }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: C.white, borderRadius: 12, padding: 28, width: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.charcoal, marginBottom: 8 }}>{t('deleteDelivery')}</div>
-            <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 24 }}>{t('permanentDelete')}</div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-              <button onClick={() => setDeleteConfirm(null)} style={{
-                padding: '9px 24px', borderRadius: 7, border: `1px solid ${COLORS.border}`,
-                background: COLORS.white, color: COLORS.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500
-              }}>{t('cancel')}</button>
-              <button onClick={() => handleDelete(deleteConfirm)} style={{
-                padding: '9px 24px', borderRadius: 7, border: 'none',
-                background: COLORS.red, color: COLORS.white, fontSize: 13, cursor: 'pointer', fontWeight: 600
-              }}>{t('yesDelete')}</button>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, marginBottom: 8 }}>{t('deleteDelivery')}</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>{t('permanentDelete')}</div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={() => setDeleteConfirm(null)} style={{ padding: '9px 24px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
+              <button onClick={() => handleDelete(deleteConfirm)} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: C.red, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{t('yesDelete')}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* View Delivery Modal */}
-      {viewDelivery && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: 20
-        }}>
-          <div style={{
-            background: COLORS.white, borderRadius: 14,
-            padding: 28, width: 480,
-            boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
-            direction: isRTL ? 'rtl' : 'ltr'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-              <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-                  {language === 'ar' ? 'توصيل' : 'Delivery'} #{viewDelivery.id.slice(-6).toUpperCase()}
-                </div>
-                <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
-                  {new Date(viewDelivery.createdAt).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </div>
-              </div>
-              <button onClick={() => setViewDelivery(null)} style={{
-                background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: COLORS.textMuted
-              }}>✕</button>
-            </div>
-
-            {/* Status buttons */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.textMuted, marginBottom: 8 }}>{t('updateStatus')}</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                {STATUSES.map(s => {
-                  const sc = STATUS_COLORS[s];
-                  const isActive = viewDelivery.status === s;
-                  return (
-                    <button key={s} onClick={() => handleStatusChange(viewDelivery.id, s)} style={{
-                      padding: '6px 12px', borderRadius: 6, cursor: 'pointer',
-                      border: `1px solid ${isActive ? sc.text : COLORS.border}`,
-                      background: isActive ? sc.bg : COLORS.white,
-                      color: isActive ? sc.text : COLORS.charcoalMid,
-                      fontSize: 12, fontWeight: isActive ? 600 : 400
-                    }}>
-                      {getStatusLabel(s)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Details */}
-            <div style={{ background: COLORS.offWhite, borderRadius: 10, padding: 16, marginBottom: 16 }}>
-              {[
-                { label: t('customers'), value: viewDelivery.customerName },
-                { label: t('address'), value: viewDelivery.address },
-                { label: t('scheduledDate'), value: new Date(viewDelivery.scheduledDate).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) },
-                { label: t('assignDriver'), value: viewDelivery.driverId ? getDriverName(viewDelivery.driverId) : t('noDriverAssigned') },
-                { label: t('items'), value: viewDelivery.items || '—' },
-              ].map(row => (
-                <div key={row.label} style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  padding: '7px 0', borderBottom: `1px solid ${COLORS.border}`,
-                  flexDirection: isRTL ? 'row-reverse' : 'row'
-                }}>
-                  <span style={{ fontSize: 12, color: COLORS.textMuted }}>{row.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.charcoal, maxWidth: '60%', textAlign: isRTL ? 'left' : 'right' }}>{row.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {viewDelivery.installationRequired && (
-              <div style={{
-                background: `${COLORS.info}12`, border: `1px solid ${COLORS.info}33`,
-                borderRadius: 8, padding: '10px 14px', marginBottom: 16,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                flexDirection: isRTL ? 'row-reverse' : 'row'
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.info }}>{t('installationRequired')}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: viewDelivery.installationStatus === 'Completed' ? COLORS.success : COLORS.warning }}>
-                  {viewDelivery.installationStatus}
-                </span>
-              </div>
-            )}
-
-            {viewDelivery.notes && (
-              <div style={{
-                background: COLORS.offWhite, borderRadius: 8,
-                padding: '10px 14px', marginBottom: 16,
-                fontSize: 13, color: COLORS.charcoalMid, fontStyle: 'italic',
-                textAlign: isRTL ? 'right' : 'left'
-              }}>
-                {viewDelivery.notes}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-              <button onClick={() => handleEdit(viewDelivery)} style={{
-                flex: 1, padding: '9px 0', borderRadius: 7, border: `1px solid ${COLORS.border}`,
-                background: COLORS.white, color: COLORS.charcoalMid, fontSize: 13, cursor: 'pointer', fontWeight: 500
-              }}>{t('edit')}</button>
-              <button onClick={() => setDeleteConfirm(viewDelivery.id)} style={{
-                flex: 1, padding: '9px 0', borderRadius: 7, border: `1px solid ${COLORS.red}44`,
-                background: `${COLORS.red}11`, color: COLORS.red, fontSize: 13, cursor: 'pointer', fontWeight: 500
-              }}>{t('delete')}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delivery List */}
+      {/* List */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.textMuted, fontSize: 14 }}>
-          {search || filterStatus !== 'all' ? t('noData') : t('noDeliveries')}
-        </div>
+        <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted }}>{t('noDeliveries')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
-          {filtered.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate)).map(delivery => {
-            const sc = STATUS_COLORS[delivery.status] || STATUS_COLORS.Pending;
-            const isOverdue = delivery.status === 'Pending' && new Date(delivery.scheduledDate) < new Date();
+          {filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(delivery => {
+            const sc = STATUS_COLORS[delivery.status] || STATUS_COLORS['Pending'];
+            const isOverdue = delivery.status === 'Pending' && delivery.scheduledDate < new Date().toISOString().split('T')[0];
             return (
-              <div key={delivery.id} onClick={() => setViewDelivery(delivery)} style={{
-                background: COLORS.white, borderRadius: 10,
-                border: `1px solid ${isOverdue ? COLORS.red + '66' : COLORS.border}`,
-                padding: '14px 20px',
-                display: 'flex', alignItems: 'center', gap: 14,
-                flexDirection: isRTL ? 'row-reverse' : 'row',
-                cursor: 'pointer', transition: 'all 0.15s',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
-              }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = COLORS.red + '66'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = isOverdue ? COLORS.red + '66' : COLORS.border}
-              >
-                <div style={{
-                  width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                  background: sc.bg, border: `1px solid ${sc.border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20
-                }}>
-                  {delivery.status === 'Delivered' ? '✅' :
-                    delivery.status === 'Out for Delivery' ? '🚚' :
-                      delivery.status === 'Failed' ? '❌' : '📦'}
-                </div>
-
-                <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: COLORS.charcoal }}>{delivery.customerName}</span>
-                    <span style={{
-                      background: sc.bg, border: `1px solid ${sc.border}`,
-                      color: sc.text, fontSize: 10, fontWeight: 600, padding: '1px 8px', borderRadius: 20
-                    }}>{getStatusLabel(delivery.status)}</span>
-                    {isOverdue && (
-                      <span style={{
-                        background: `${COLORS.red}15`, border: `1px solid ${COLORS.red}44`,
-                        color: COLORS.red, fontSize: 10, fontWeight: 600, padding: '1px 8px', borderRadius: 20
-                      }}>{t('overdue')}</span>
-                    )}
-                    {delivery.installationRequired && (
-                      <span style={{
-                        background: `${COLORS.info}15`, border: `1px solid ${COLORS.info}44`,
-                        color: COLORS.info, fontSize: 10, fontWeight: 600, padding: '1px 8px', borderRadius: 20
-                      }}>{t('installation')}</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
-                    {delivery.address}
-                    {delivery.driverId && ` · ${getDriverName(delivery.driverId)}`}
+              <div key={delivery.id} style={{ background: C.white, borderRadius: 10, border: `1px solid ${isOverdue ? C.red + '44' : C.border}`, padding: isMobile ? '12px 14px' : '14px 20px', boxShadow: `0 1px 4px ${C.shadow}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                  <div style={{ width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: 10, flexShrink: 0, background: `${C.info}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 18 : 22 }}>🚚</div>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: isRTL ? 'right' : 'left' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                      <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: C.charcoal }}>{delivery.customerName}</span>
+                      <span style={{ background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>{delivery.status}</span>
+                      {isOverdue && <span style={{ background: `${C.red}15`, border: `1px solid ${C.red}33`, color: C.red, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>⚠️ {t('overdue')}</span>}
+                      {delivery.installationRequired && <span style={{ background: `${C.info}15`, border: `1px solid ${C.info}33`, color: C.info, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>🔧 {t('installation')}</span>}
+                    </div>
+                    <div style={{ fontSize: isMobile ? 11 : 12, color: C.textMuted, marginTop: 2 }}>
+                      📍 {delivery.deliveryAddress}
+                    </div>
+                    <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted, marginTop: 2 }}>
+                      📅 {delivery.scheduledDate} · 🚗 {getDriverName(delivery.driverId)}
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ textAlign: isRTL ? 'left' : 'right', marginRight: isRTL ? 0 : 8, marginLeft: isRTL ? 8 : 0 }}>
-                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>{t('scheduledDate')}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: isOverdue ? COLORS.red : COLORS.charcoal }}>
-                    {new Date(delivery.scheduledDate).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'short' })}
+                {/* Status Update + Actions */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                  {STATUSES.filter(s => s !== delivery.status).map(status => (
+                    <button key={status} onClick={() => handleStatusChange(delivery.id, status)} style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: C.offWhite, color: C.charcoalMid, fontSize: 11, cursor: 'pointer', fontWeight: 500 }}>
+                      → {status}
+                    </button>
+                  ))}
+                  <div style={{ marginLeft: isRTL ? 0 : 'auto', marginRight: isRTL ? 'auto' : 0, display: 'flex', gap: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                    <button onClick={() => handleEdit(delivery)} style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 11, cursor: 'pointer' }}>{t('edit')}</button>
+                    <button onClick={() => setDeleteConfirm(delivery.id)} style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.red}44`, background: `${C.red}11`, color: C.red, fontSize: 11, cursor: 'pointer' }}>{t('delete')}</button>
                   </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => handleEdit(delivery)} style={{
-                    padding: '7px 14px', borderRadius: 7, border: `1px solid ${COLORS.border}`,
-                    background: COLORS.white, color: COLORS.charcoalMid, fontSize: 12, cursor: 'pointer', fontWeight: 500
-                  }}>{t('edit')}</button>
-                  <button onClick={() => setDeleteConfirm(delivery.id)} style={{
-                    padding: '7px 14px', borderRadius: 7, border: `1px solid ${COLORS.red}44`,
-                    background: `${COLORS.red}11`, color: COLORS.red, fontSize: 12, cursor: 'pointer', fontWeight: 500
-                  }}>{t('delete')}</button>
                 </div>
               </div>
             );

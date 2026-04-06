@@ -1,283 +1,268 @@
-import { useState, useEffect, useRef } from 'react';
-import { COLORS } from '../data/store';
-import { BellIcon, PosIcon } from './Icons';
-import { useLanguage } from '../data/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { useThemeColors } from '../hooks/useThemeColors';
-import { useWindowSize } from '../hooks/useWindowSize';
-import { getUnreadNotifications, markAllRead } from '../data/store';
+import { useState } from 'react';
+import { COLORS, PAGE_TITLES } from './data/store';
+import { useLanguage } from './data/LanguageContext';
+import { useAuth } from './contexts/AuthContext';
+import { useTheme } from './contexts/ThemeContext';
+import { useThemeColors } from './hooks/useThemeColors';
+import { useWindowSize } from './hooks/useWindowSize';
+import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
+import StatCards from './components/StatCards';
+import MobileNav from './components/MobileNav';
+import PlaceholderPage from './pages/PlaceholderPage';
+import Login from './pages/Login';
+import Suppliers from './pages/Suppliers';
+import Categories from './pages/Categories';
+import Inventory from './pages/Inventory';
+import Customers from './pages/Customers';
+import POS from './pages/POS';
+import Expenses from './pages/Expenses';
+import SalesReport from './pages/SalesReport';
+import ProfitLoss from './pages/ProfitLoss';
+import CashFlow from './pages/CashFlow';
+import Employees from './pages/Employees';
+import Delivery from './pages/Delivery';
+import PurchaseOrders from './pages/PurchaseOrders';
+import Returns from './pages/Returns';
+import Dashboard from './pages/Dashboard';
+import Settings from './pages/Settings';
+import UserManagement from './pages/UserManagement';
+import Reports from './pages/Reports';
+import Gifts from './pages/Gifts';
 
-export default function TopBar({ activePage, setActivePage, onMenuClick, isMobile }) {
-  const { language, changeLanguage, t, isRTL } = useLanguage();
-  const { currentUser, logout } = useAuth();
-  const { toggleTheme, isDark } = useTheme();
+export default function App() {
+  const [activePage, setActivePage] = useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { isRTL } = useLanguage();
+  const { currentUser, loading, hasPermission, isSuperAdmin } = useAuth();
+  const { isDark } = useTheme();
   const C = useThemeColors();
-  const { isTablet } = useWindowSize();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const notifRef = useRef();
-  const userRef = useRef();
+  const { isMobile, isTablet } = useWindowSize();
 
-  useEffect(() => {
-    setNotifications(getUnreadNotifications());
-    const interval = setInterval(() => setNotifications(getUnreadNotifications()), 5000);
-    return () => clearInterval(interval);
-  }, []);
+  if (loading) {
+    return (
+      <div style={{
+        height: '100vh', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        background: isDark ? '#1a1d21' : COLORS.charcoal
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: 12,
+            background: `linear-gradient(135deg, ${COLORS.steel}, ${COLORS.steelDark})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
+          }}>
+            <span style={{ fontSize: 26, fontWeight: 900, color: COLORS.charcoal, fontFamily: 'Georgia, serif' }}>J</span>
+          </div>
+          <div style={{ color: COLORS.steelDark, fontSize: 13 }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    function handleClick(e) {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setShowUserMenu(false);
+  if (!currentUser) return <Login />;
+
+  function AccessDenied() {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        minHeight: '60vh', gap: 16, padding: 24
+      }}>
+        <div style={{ fontSize: 60 }}>🔒</div>
+        <div style={{
+          fontSize: 20, fontWeight: 700, color: C.charcoal,
+          fontFamily: 'Georgia, serif', textAlign: 'center'
+        }}>
+          {isRTL ? 'ليس لديك صلاحية' : 'Access Denied'}
+        </div>
+        <div style={{ fontSize: 14, color: C.textMuted, textAlign: 'center', maxWidth: 300 }}>
+          {isRTL
+            ? 'ليس لديك صلاحية لعرض هذه الصفحة.'
+            : 'You do not have permission to view this page.'}
+        </div>
+        <button
+          onClick={() => setActivePage('dashboard')}
+          style={{
+            padding: '10px 24px', borderRadius: 8, border: 'none',
+            background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`,
+            color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer'
+          }}
+        >
+          {isRTL ? 'العودة للرئيسية' : 'Go to Dashboard'}
+        </button>
+      </div>
+    );
+  }
+
+  function renderPage() {
+    if (activePage === 'user-management') {
+      if (!isSuperAdmin()) return <AccessDenied />;
+      return <UserManagement />;
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  function handleMarkAllRead() {
-    markAllRead();
-    setNotifications(getUnreadNotifications());
+    if (!hasPermission(activePage)) return <AccessDenied />;
+    switch (activePage) {
+      case 'dashboard': return <Dashboard />;
+      case 'suppliers': return <Suppliers />;
+      case 'categories': return <Categories />;
+      case 'inventory': return <Inventory />;
+      case 'customers': return <Customers />;
+      case 'pos': return <POS />;
+      case 'expenses': return <Expenses />;
+      case 'sales-report': return <SalesReport />;
+      case 'pl': return <ProfitLoss />;
+      case 'cashflow': return <CashFlow />;
+      case 'employees': return <Employees />;
+      case 'delivery': return <Delivery />;
+      case 'purchase-orders': return <PurchaseOrders />;
+      case 'returns': return <Returns />;
+      case 'settings': return <Settings />;
+      case 'reports': return <Reports />;
+      case 'gifts': return <Gifts />;
+      default: return <PlaceholderPage pageId={activePage} />;
+    }
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const today = new Date().toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const fullPageModules = [
+    'dashboard', 'suppliers', 'categories', 'inventory',
+    'customers', 'pos', 'expenses', 'sales-report',
+    'pl', 'cashflow', 'employees', 'delivery',
+    'purchase-orders', 'returns', 'settings',
+    'user-management', 'reports', 'gifts'
+  ];
 
-  const PAGE_TITLES_T = {
-    dashboard: t('dashboard'), pos: t('pos'),
-    inventory: t('inventory'), suppliers: t('suppliers'),
-    categories: t('categories'), 'purchase-orders': t('purchaseOrders'),
-    customers: t('customers'), delivery: t('delivery'),
-    returns: t('returns'), 'sales-report': t('salesReport'),
-    expenses: t('expenses'), pl: t('pl'),
-    cashflow: t('cashflow'), employees: t('employees'),
-    reports: t('reports'), settings: t('settings'),
-    'user-management': t('userManagement'), gifts: t('gifts'),
-  };
+  const isFullPage = fullPageModules.includes(activePage);
+  const isPOS = activePage === 'pos';
+  const showSidebar = !isMobile;
+  const effectiveCollapsed = isTablet ? true : sidebarCollapsed;
 
-  function getRoleLabel(role) {
-    if (role === 'superadmin') return language === 'ar' ? 'مدير النظام' : 'Super Admin';
-    if (role === 'admin') return language === 'ar' ? 'مدير' : 'Admin';
-    return language === 'ar' ? 'كاشير' : 'Cashier';
+  function handlePageChange(page) {
+    setActivePage(page);
+    setMobileSidebarOpen(false);
   }
-
-  const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
 
   return (
     <div style={{
-      background: C.white, borderBottom: `1px solid ${C.border}`,
-      padding: isMobile ? '0 14px' : '0 28px',
-      height: isMobile ? 54 : 60,
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      flexShrink: 0, boxShadow: `0 1px 4px ${C.border}`,
-      direction: isRTL ? 'rtl' : 'ltr', fontFamily,
-      zIndex: 50, position: 'relative'
+      display: 'flex', height: '100vh',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      background: C.offWhite,
+      flexDirection: isRTL ? 'row-reverse' : 'row',
+      overflow: 'hidden'
     }}>
 
-      {/* Left */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+      {/* Mobile Sidebar Overlay */}
+      {isMobile && mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.6)', zIndex: 200
+          }}
+        />
+      )}
 
-        {/* Hamburger — mobile/tablet */}
-        {(isMobile || isTablet) && (
-          <button onClick={onMenuClick} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: C.charcoal, padding: 4, display: 'flex', alignItems: 'center',
-            fontSize: 20
-          }}>
-            ☰
-          </button>
-        )}
-
-        <div>
-          <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-            {PAGE_TITLES_T[activePage] || activePage}
-          </div>
-          {!isMobile && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>{today}</div>}
-        </div>
-      </div>
-
-      {/* Right */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-
-        {/* Language — hide on mobile */}
-        {!isMobile && (
-          <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
-            {[{ code: 'en', label: '🇬🇧 EN' }, { code: 'ar', label: '🇮🇶 AR' }].map(lang => (
-              <button key={lang.code} onClick={() => changeLanguage(lang.code)} style={{
-                padding: '6px 12px', border: 'none', cursor: 'pointer',
-                background: language === lang.code ? C.charcoal : C.white,
-                color: language === lang.code ? '#fff' : C.charcoalMid,
-                fontSize: 12, fontWeight: language === lang.code ? 600 : 400
-              }}>
-                {lang.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Dark mode toggle */}
-        <button onClick={toggleTheme} style={{
-          background: isDark ? '#FFD70022' : C.offWhite,
-          border: `1px solid ${isDark ? '#FFD70044' : C.border}`,
-          borderRadius: 8, padding: isMobile ? '5px 8px' : '7px 12px',
-          cursor: 'pointer', color: isDark ? '#FFD700' : C.charcoalMid,
-          fontSize: isMobile ? 14 : 16, display: 'flex', alignItems: 'center'
+      {/* Mobile Sidebar Drawer */}
+      {isMobile && (
+        <div style={{
+          position: 'fixed', top: 0, bottom: 0,
+          left: isRTL ? 'auto' : (mobileSidebarOpen ? 0 : '-280px'),
+          right: isRTL ? (mobileSidebarOpen ? 0 : '-280px') : 'auto',
+          width: 260, zIndex: 300,
+          transition: 'left 0.3s cubic-bezier(0.4,0,0.2,1), right 0.3s cubic-bezier(0.4,0,0.2,1)'
         }}>
-          {isDark ? '☀️' : '🌙'}
-        </button>
-
-        {/* New Sale — hide on mobile (use bottom nav) */}
-        {!isMobile && (
-          <button onClick={() => setActivePage('pos')} style={{
-            background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`,
-            border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer',
-            color: '#fff', fontSize: 13, fontWeight: 600,
-            boxShadow: `0 2px 8px ${C.red}44`,
-            display: 'flex', alignItems: 'center', gap: 6
-          }}>
-            <PosIcon /> {t('newSale')}
-          </button>
-        )}
-
-        {/* Notifications Bell */}
-        <div ref={notifRef} style={{ position: 'relative' }}>
-          <button onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }} style={{
-            background: C.offWhite, border: `1px solid ${C.border}`,
-            borderRadius: 8, padding: isMobile ? '5px 8px' : '7px 10px',
-            cursor: 'pointer', color: C.charcoalMid,
-            display: 'flex', alignItems: 'center', position: 'relative'
-          }}>
-            <BellIcon />
-            {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute', top: -4,
-                right: isRTL ? 'auto' : -4, left: isRTL ? -4 : 'auto',
-                background: C.red, color: '#fff', borderRadius: '50%',
-                width: 16, height: 16, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 9, fontWeight: 700,
-                border: `2px solid ${C.white}`
-              }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {showNotifications && (
-            <div style={{
-              position: 'fixed', top: isMobile ? 54 : 60,
-              right: isRTL ? 'auto' : (isMobile ? 0 : 'auto'),
-              left: isRTL ? 0 : 'auto',
-              width: isMobile ? '100vw' : 340,
-              background: C.white, borderRadius: isMobile ? 0 : 12,
-              boxShadow: `0 8px 32px ${C.shadow}`,
-              border: `1px solid ${C.border}`, zIndex: 200, overflow: 'hidden'
-            }}>
-              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>
-                  {t('notifications')}
-                  {unreadCount > 0 && <span style={{ marginLeft: 8, background: C.red, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>{unreadCount}</span>}
-                </div>
-                {unreadCount > 0 && <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.info, fontWeight: 600 }}>{t('markAllRead')}</button>}
-              </div>
-              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                {notifications.length === 0 ? (
-                  <div style={{ padding: '30px 16px', textAlign: 'center', color: C.textMuted, fontSize: 13 }}>{t('noNotifications')}</div>
-                ) : notifications.slice(0, 10).map((notif, i) => (
-                  <div key={notif.id} style={{ padding: '12px 16px', borderBottom: i < notifications.length - 1 ? `1px solid ${C.offWhite}` : 'none', background: notif.read ? C.white : `${C.red}06`, display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: `${C.success}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔔</div>
-                    <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
-                      <div style={{ fontSize: 12, fontWeight: notif.read ? 400 : 600, color: C.charcoal }}>{notif.message}</div>
-                      <div style={{ fontSize: 10, color: C.textMuted, marginTop: 3 }}>
-                        {new Date(notif.time).toLocaleString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                    {!notif.read && <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flexShrink: 0, marginTop: 4 }} />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <Sidebar
+            activePage={activePage}
+            setActivePage={handlePageChange}
+            collapsed={false}
+            setCollapsed={() => {}}
+            onClose={() => setMobileSidebarOpen(false)}
+            isMobileDrawer={true}
+          />
         </div>
+      )}
 
-        {/* User Avatar */}
-        <div ref={userRef} style={{ position: 'relative' }}>
-          <div onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }} style={{
-            display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 8,
-            cursor: 'pointer', padding: isMobile ? '4px' : '4px 8px',
-            borderRadius: 8, border: `1px solid ${C.border}`, background: C.offWhite,
-            flexDirection: isRTL ? 'row-reverse' : 'row'
-          }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff' }}>
-              {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            {!isMobile && (
-              <>
-                <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoal, lineHeight: 1.2 }}>{currentUser?.name}</div>
-                  <div style={{ fontSize: 10, color: C.textMuted }}>{getRoleLabel(currentUser?.role)}</div>
-                </div>
-                <span style={{ fontSize: 10, color: C.textMuted }}>▾</span>
-              </>
-            )}
-          </div>
+      {/* Desktop/Tablet Sidebar */}
+      {showSidebar && (
+        <Sidebar
+          activePage={activePage}
+          setActivePage={handlePageChange}
+          collapsed={effectiveCollapsed}
+          setCollapsed={setSidebarCollapsed}
+        />
+      )}
 
-          {showUserMenu && (
-            <div style={{
-              position: 'fixed', top: isMobile ? 54 : 60,
-              right: isRTL ? 'auto' : (isMobile ? 0 : 0),
-              left: isRTL ? 0 : 'auto',
-              width: isMobile ? '100vw' : 220,
-              background: C.white, borderRadius: isMobile ? 0 : 12,
-              boxShadow: `0 8px 32px ${C.shadow}`,
-              border: `1px solid ${C.border}`, zIndex: 200, overflow: 'hidden'
-            }}>
-              <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, textAlign: isRTL ? 'right' : 'left' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal }}>{currentUser?.name}</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>@{currentUser?.username}</div>
-              </div>
+      {/* Main Content */}
+      <div style={{
+        flex: 1, display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden', minWidth: 0
+      }}>
 
-              {/* Language switcher — mobile only */}
-              {isMobile && (
-                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.offWhite}`, display: 'flex', gap: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                  {[{ code: 'en', label: '🇬🇧 English' }, { code: 'ar', label: '🇮🇶 العربية' }].map(lang => (
-                    <button key={lang.code} onClick={() => changeLanguage(lang.code)} style={{
-                      flex: 1, padding: '7px 0', border: `1px solid ${language === lang.code ? C.red : C.border}`, borderRadius: 7,
-                      background: language === lang.code ? `${C.red}12` : C.white,
-                      color: language === lang.code ? C.red : C.charcoalMid,
-                      fontSize: 12, cursor: 'pointer', fontWeight: language === lang.code ? 600 : 400
-                    }}>
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+        <TopBar
+          activePage={activePage}
+          setActivePage={handlePageChange}
+          onMenuClick={() => setMobileSidebarOpen(true)}
+          isMobile={isMobile}
+        />
 
-              {[
-                { icon: isDark ? '☀️' : '🌙', label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme },
-                { icon: '⚙️', label: t('settings'), action: () => { setActivePage('settings'); setShowUserMenu(false); } },
-                ...(currentUser?.role === 'superadmin' ? [{ icon: '👥', label: t('userManagement'), action: () => { setActivePage('user-management'); setShowUserMenu(false); } }] : []),
-                { icon: '🚪', label: t('logout'), action: logout, color: C.red },
-              ].map(item => (
-                <button key={item.label} onClick={item.action} style={{
-                  width: '100%', padding: '12px 16px', border: 'none',
-                  background: 'none', cursor: 'pointer', fontSize: 13,
-                  color: item.color || C.charcoal,
-                  textAlign: isRTL ? 'right' : 'left',
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  borderBottom: `1px solid ${C.offWhite}`,
-                  flexDirection: isRTL ? 'row-reverse' : 'row',
-                  minHeight: 44
-                }}
-                  onMouseEnter={e => e.currentTarget.style.background = C.offWhite}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  {item.icon} {item.label}
-                </button>
-              ))}
-            </div>
+        <div style={{
+          flex: 1, overflowY: 'auto',
+          padding: isPOS ? 0 : (isMobile ? '16px 12px' : 28),
+          direction: isRTL ? 'rtl' : 'ltr',
+          background: C.offWhite,
+          paddingBottom: isMobile ? (isPOS ? 0 : 80) : (isPOS ? 0 : 28),
+        }}>
+
+          {!isPOS && activePage !== 'dashboard' && (
+            <>
+              <div style={{
+                height: 3,
+                background: isRTL
+                  ? `linear-gradient(270deg, ${C.red}, ${C.red}44, transparent)`
+                  : `linear-gradient(90deg, ${C.red}, ${C.red}44, transparent)`,
+                borderRadius: 2,
+                marginBottom: isMobile ? 16 : 24
+              }} />
+              {!isMobile && <StatCards />}
+            </>
           )}
+
+          <div style={{
+            background: C.white,
+            borderRadius: isPOS ? 0 : (isMobile ? 10 : 12),
+            border: isPOS ? 'none' : `1px solid ${C.border}`,
+            minHeight: isPOS ? '100%' : (isMobile ? 'auto' : 400),
+            boxShadow: isPOS ? 'none' : `0 1px 6px ${C.shadow}`,
+            height: isPOS ? '100%' : 'auto',
+            overflow: 'hidden'
+          }}>
+            {!isFullPage && (
+              <div style={{
+                padding: isMobile ? '12px 14px' : '14px 20px',
+                borderBottom: `1px solid ${C.border}`,
+                display: 'flex', alignItems: 'center', gap: 10,
+                flexDirection: isRTL ? 'row-reverse' : 'row'
+              }}>
+                <div style={{ width: 4, height: 18, background: C.red, borderRadius: 2 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>
+                  {PAGE_TITLES[activePage]}
+                </span>
+              </div>
+            )}
+            {renderPage()}
+          </div>
         </div>
       </div>
+
+      {/* Mobile Bottom Nav */}
+      {isMobile && (
+        <MobileNav
+          activePage={activePage}
+          setActivePage={handlePageChange}
+        />
+      )}
     </div>
   );
 }
