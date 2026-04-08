@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { COLORS } from '../data/store';
-import { getDeliveries, saveDeliveries, getCustomers, getEmployees, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
+import api from '../services/api';
 
 const STATUSES = ['Pending', 'Out for Delivery', 'Delivered', 'Failed'];
 
@@ -20,78 +19,101 @@ export default function Delivery() {
   const { isMobile } = useWindowSize();
   const [deliveries, setDeliveries] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({
-    customerId: '', customerName: '', deliveryAddress: '',
-    scheduledDate: new Date().toISOString().split('T')[0],
-    driverId: '', status: 'Pending',
-    installationRequired: false, notes: ''
+    customer_id: '', customer_name: '', delivery_address: '',
+    scheduled_date: new Date().toISOString().split('T')[0],
+    driver_name: '', status: 'Pending',
+    installation_required: false, notes: ''
   });
 
-  useEffect(() => {
-    setDeliveries(getDeliveries());
-    setCustomers(getCustomers());
-    setEmployees(getEmployees().filter(e => e.role === 'Driver' || e.status === 'Active'));
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  function handleSave() {
-    if (!form.customerName.trim()) return alert(t('customers') + ' ' + t('required'));
-    if (!form.deliveryAddress.trim()) return alert(t('deliveryAddress') + ' ' + t('required'));
-    let updated;
-    if (editingId) {
-      updated = deliveries.map(d => d.id === editingId ? { ...d, ...form } : d);
-    } else {
-      updated = [...deliveries, { id: generateId(), ...form, createdAt: new Date().toISOString() }];
+  async function fetchAll() {
+    setLoading(true);
+    try {
+      const [dels, custs] = await Promise.all([
+        api.deliveries.getAll(),
+        api.customers.getAll(),
+      ]);
+      setDeliveries(dels);
+      setCustomers(custs);
+    } catch (err) {
+      console.error('Delivery fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-    saveDeliveries(updated);
-    setDeliveries(updated);
-    resetForm();
   }
 
-  function handleStatusChange(id, status) {
-    const updated = deliveries.map(d => d.id === id ? { ...d, status } : d);
-    saveDeliveries(updated);
-    setDeliveries(updated);
+  async function handleSave() {
+    if (!form.customer_name.trim()) return alert(t('customers') + ' ' + t('required'));
+    if (!form.delivery_address.trim()) return alert(t('deliveryAddress') + ' ' + t('required'));
+    setSaving(true);
+    try {
+      if (editingId) {
+        const updated = await api.deliveries.update(editingId, form);
+        setDeliveries(ds => ds.map(d => d.id === editingId ? updated : d));
+      } else {
+        const created = await api.deliveries.create(form);
+        setDeliveries(ds => [created, ...ds]);
+      }
+      resetForm();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStatusChange(id, status) {
+    try {
+      const updated = await api.deliveries.updateStatus(id, status);
+      setDeliveries(ds => ds.map(d => d.id === id ? updated : d));
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function handleEdit(delivery) {
     setForm({
-      customerId: delivery.customerId || '',
-      customerName: delivery.customerName || '',
-      deliveryAddress: delivery.deliveryAddress || '',
-      scheduledDate: delivery.scheduledDate || new Date().toISOString().split('T')[0],
-      driverId: delivery.driverId || '',
+      customer_id: delivery.customer_id || '',
+      customer_name: delivery.customer_name || '',
+      delivery_address: delivery.delivery_address || '',
+      scheduled_date: delivery.scheduled_date || new Date().toISOString().split('T')[0],
+      driver_name: delivery.driver_name || '',
       status: delivery.status || 'Pending',
-      installationRequired: delivery.installationRequired || false,
+      installation_required: delivery.installation_required || false,
       notes: delivery.notes || ''
     });
     setEditingId(delivery.id);
     setShowForm(true);
   }
 
-  function handleDelete(id) {
-    const updated = deliveries.filter(d => d.id !== id);
-    saveDeliveries(updated);
-    setDeliveries(updated);
-    setDeleteConfirm(null);
+  async function handleDelete(id) {
+    try {
+      await api.deliveries.delete(id);
+      setDeliveries(ds => ds.filter(d => d.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function resetForm() {
-    setForm({ customerId: '', customerName: '', deliveryAddress: '', scheduledDate: new Date().toISOString().split('T')[0], driverId: '', status: 'Pending', installationRequired: false, notes: '' });
+    setForm({ customer_id: '', customer_name: '', delivery_address: '', scheduled_date: new Date().toISOString().split('T')[0], driver_name: '', status: 'Pending', installation_required: false, notes: '' });
     setEditingId(null);
     setShowForm(false);
   }
 
-  function getDriverName(id) { return employees.find(e => e.id === id)?.name || t('noDriverAssigned'); }
-
   const filtered = deliveries.filter(d => {
     const matchStatus = filterStatus === 'all' || d.status === filterStatus;
-    const matchSearch = d.customerName?.toLowerCase().includes(search.toLowerCase()) || d.deliveryAddress?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = d.customer_name?.toLowerCase().includes(search.toLowerCase()) || d.delivery_address?.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
 
@@ -155,31 +177,28 @@ export default function Delivery() {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('customers')} *</div>
-                <select value={form.customerId} onChange={e => {
-                  const c = customers.find(c => c.id === e.target.value);
-                  setForm({ ...form, customerId: e.target.value, customerName: c?.name || '' });
+                <select value={form.customer_id} onChange={e => {
+                  const c = customers.find(c => c.id === parseInt(e.target.value));
+                  setForm({ ...form, customer_id: e.target.value, customer_name: c?.name || '' });
                 }} style={{ ...inputStyle, cursor: 'pointer' }}>
                   <option value="">{language === 'ar' ? 'اختر عميلاً' : 'Select customer'}</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>)}
                 </select>
-                {!form.customerId && (
-                  <input value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} placeholder={language === 'ar' ? 'أو اكتب الاسم يدوياً' : 'Or type name manually'} style={{ ...inputStyle, marginTop: 6 }} />
+                {!form.customer_id && (
+                  <input value={form.customer_name} onChange={e => setForm({ ...form, customer_name: e.target.value })} placeholder={language === 'ar' ? 'أو اكتب الاسم يدوياً' : 'Or type name manually'} style={{ ...inputStyle, marginTop: 6 }} />
                 )}
               </div>
               <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('deliveryAddress')} *</div>
-                <textarea value={form.deliveryAddress} onChange={e => setForm({ ...form, deliveryAddress: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+                <textarea value={form.delivery_address} onChange={e => setForm({ ...form, delivery_address: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('scheduledDate')}</div>
-                <input type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} style={inputStyle} />
+                <input type="date" value={form.scheduled_date} onChange={e => setForm({ ...form, scheduled_date: e.target.value })} style={inputStyle} />
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('assignDriver')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
-                <select value={form.driverId} onChange={e => setForm({ ...form, driverId: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="">{t('noDriverAssigned')}</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
-                </select>
+                <input value={form.driver_name} onChange={e => setForm({ ...form, driver_name: e.target.value })} placeholder={language === 'ar' ? 'اسم السائق' : 'Driver name'} style={inputStyle} />
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('status')}</div>
@@ -188,8 +207,8 @@ export default function Delivery() {
                 </select>
               </div>
               <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
-                <div onClick={() => setForm({ ...form, installationRequired: !form.installationRequired })} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, background: form.installationRequired ? `${C.info}12` : C.offWhite, border: `1px solid ${form.installationRequired ? C.info + '44' : C.border}`, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 4, background: form.installationRequired ? C.info : C.white, border: `2px solid ${form.installationRequired ? C.info : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', flexShrink: 0 }}>{form.installationRequired ? '✓' : ''}</div>
+                <div onClick={() => setForm({ ...form, installation_required: !form.installation_required })} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, background: form.installation_required ? `${C.info}12` : C.offWhite, border: `1px solid ${form.installation_required ? C.info + '44' : C.border}`, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 4, background: form.installation_required ? C.info : C.white, border: `2px solid ${form.installation_required ? C.info : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', flexShrink: 0 }}>{form.installation_required ? '✓' : ''}</div>
                   <span style={{ fontSize: 13, color: C.charcoal }}>🔧 {t('installationRequired')}</span>
                 </div>
               </div>
@@ -200,7 +219,9 @@ export default function Delivery() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
               <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
-              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('newDelivery')}</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
+                {saving ? '...' : editingId ? t('save') : t('newDelivery')}
+              </button>
             </div>
           </div>
         </div>
@@ -222,34 +243,32 @@ export default function Delivery() {
       )}
 
       {/* List */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted }}>{t('noDeliveries')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
-          {filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(delivery => {
+          {filtered.map(delivery => {
             const sc = STATUS_COLORS[delivery.status] || STATUS_COLORS['Pending'];
-            const isOverdue = delivery.status === 'Pending' && delivery.scheduledDate < new Date().toISOString().split('T')[0];
+            const isOverdue = delivery.status === 'Pending' && delivery.scheduled_date < new Date().toISOString().split('T')[0];
             return (
               <div key={delivery.id} style={{ background: C.white, borderRadius: 10, border: `1px solid ${isOverdue ? C.red + '44' : C.border}`, padding: isMobile ? '12px 14px' : '14px 20px', boxShadow: `0 1px 4px ${C.shadow}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
                   <div style={{ width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: 10, flexShrink: 0, background: `${C.info}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 18 : 22 }}>🚚</div>
                   <div style={{ flex: 1, minWidth: 0, textAlign: isRTL ? 'right' : 'left' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                      <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: C.charcoal }}>{delivery.customerName}</span>
+                      <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: C.charcoal }}>{delivery.customer_name}</span>
                       <span style={{ background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>{delivery.status}</span>
                       {isOverdue && <span style={{ background: `${C.red}15`, border: `1px solid ${C.red}33`, color: C.red, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>⚠️ {t('overdue')}</span>}
-                      {delivery.installationRequired && <span style={{ background: `${C.info}15`, border: `1px solid ${C.info}33`, color: C.info, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>🔧 {t('installation')}</span>}
+                      {delivery.installation_required && <span style={{ background: `${C.info}15`, border: `1px solid ${C.info}33`, color: C.info, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>🔧 {t('installation')}</span>}
                     </div>
-                    <div style={{ fontSize: isMobile ? 11 : 12, color: C.textMuted, marginTop: 2 }}>
-                      📍 {delivery.deliveryAddress}
-                    </div>
+                    <div style={{ fontSize: isMobile ? 11 : 12, color: C.textMuted, marginTop: 2 }}>📍 {delivery.delivery_address}</div>
                     <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted, marginTop: 2 }}>
-                      📅 {delivery.scheduledDate} · 🚗 {getDriverName(delivery.driverId)}
+                      📅 {delivery.scheduled_date} · 🚗 {delivery.driver_name || t('noDriverAssigned')}
                     </div>
                   </div>
                 </div>
-
-                {/* Status Update + Actions */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
                   {STATUSES.filter(s => s !== delivery.status).map(status => (
                     <button key={status} onClick={() => handleStatusChange(delivery.id, status)} style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: C.offWhite, color: C.charcoalMid, fontSize: 11, cursor: 'pointer', fontWeight: 500 }}>

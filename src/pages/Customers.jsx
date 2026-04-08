@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { COLORS } from '../data/store';
-import { getCustomers, saveCustomers, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
+import api from '../services/api';
 
 const TAGS = ['Regular', 'VIP', 'Wholesale', 'Blocked'];
 
@@ -14,6 +13,8 @@ export default function Customers() {
   const C = useThemeColors();
   const { isMobile } = useWindowSize();
   const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -21,51 +22,86 @@ export default function Customers() {
   const [filterTag, setFilterTag] = useState('all');
   const [form, setForm] = useState({
     name: '', phone: '', email: '', address: '',
-    tag: 'Regular', creditLimit: '', balance: '', notes: ''
+    tag: 'Regular', creditLimit: '', notes: ''
   });
 
-  useEffect(() => { setCustomers(getCustomers()); }, []);
+  useEffect(() => { fetchCustomers(); }, []);
 
-  function handleSave() {
+  async function fetchCustomers() {
+    setLoading(true);
+    try {
+      const data = await api.customers.getAll();
+      setCustomers(data);
+    } catch (err) {
+      console.error('Customers fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave() {
     if (!form.name.trim()) return alert(t('fullName') + ' ' + t('required'));
     if (!form.phone.trim()) return alert(t('phone') + ' ' + t('required'));
-    let updated;
-    if (editingId) {
-      updated = customers.map(c => c.id === editingId ? { ...c, ...form, creditLimit: parseFloat(form.creditLimit) || 0, balance: parseFloat(form.balance) || 0 } : c);
-    } else {
-      updated = [...customers, { id: generateId(), ...form, creditLimit: parseFloat(form.creditLimit) || 0, balance: parseFloat(form.balance) || 0, totalPurchases: 0, totalSpent: 0, createdAt: new Date().toISOString() }];
+    setSaving(true);
+    try {
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email,
+        address: form.address,
+      };
+      if (editingId) {
+        const updated = await api.customers.update(editingId, payload);
+        setCustomers(cs => cs.map(c => c.id === editingId ? { ...c, ...updated } : c));
+      } else {
+        const created = await api.customers.create(payload);
+        setCustomers(cs => [...cs, created]);
+      }
+      resetForm();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
     }
-    saveCustomers(updated);
-    setCustomers(updated);
-    resetForm();
   }
 
   function handleEdit(customer) {
-    setForm({ name: customer.name, phone: customer.phone, email: customer.email || '', address: customer.address || '', tag: customer.tag || 'Regular', creditLimit: customer.creditLimit || '', balance: customer.balance || '', notes: customer.notes || '' });
+    setForm({
+      name: customer.name,
+      phone: customer.phone || '',
+      email: customer.email || '',
+      address: customer.address || '',
+      tag: customer.tag || 'Regular',
+      creditLimit: customer.creditLimit || '',
+      notes: customer.notes || ''
+    });
     setEditingId(customer.id);
     setShowForm(true);
   }
 
-  function handleDelete(id) {
-    const updated = customers.filter(c => c.id !== id);
-    saveCustomers(updated);
-    setCustomers(updated);
-    setDeleteConfirm(null);
+  async function handleDelete(id) {
+    try {
+      await api.customers.delete(id);
+      setCustomers(cs => cs.filter(c => c.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function resetForm() {
-    setForm({ name: '', phone: '', email: '', address: '', tag: 'Regular', creditLimit: '', balance: '', notes: '' });
+    setForm({ name: '', phone: '', email: '', address: '', tag: 'Regular', creditLimit: '', notes: '' });
     setEditingId(null);
     setShowForm(false);
   }
 
   const filtered = customers.filter(c => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
+    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone || '').includes(search);
     const matchTag = filterTag === 'all' || c.tag === filterTag;
     return matchSearch && matchTag;
   });
 
-  const totalDebt = customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
+  const totalDebt = 0; // debt tracking handled via sales in backend
   const vipCount = customers.filter(c => c.tag === 'VIP').length;
   const opt = language === 'ar' ? 'اختياري' : 'Optional';
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
@@ -87,7 +123,6 @@ export default function Customers() {
           <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{t('customers')}</div>
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
             {customers.length} {t('totalCustomers')} · {vipCount} VIP
-            {totalDebt > 0 && <span style={{ color: C.red, fontWeight: 600 }}> · {fmt(totalDebt)} {t('totalDebt')}</span>}
           </div>
         </div>
         <button onClick={() => { resetForm(); setShowForm(true); }} style={{ background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, border: 'none', borderRadius: 8, padding: isMobile ? '9px 14px' : '10px 20px', color: '#fff', fontSize: isMobile ? 12 : 13, fontWeight: 600, cursor: 'pointer', boxShadow: `0 2px 8px ${C.red}44` }}>
@@ -101,8 +136,8 @@ export default function Customers() {
           {[
             { label: t('totalCustomers'), value: customers.length, color: C.info },
             { label: 'VIP', value: vipCount, color: '#B8860B' },
-            { label: t('totalDebt'), value: fmt(totalDebt), color: C.red },
-            { label: language === 'ar' ? 'جديد هذا الشهر' : 'New This Month', value: customers.filter(c => c.createdAt?.startsWith(new Date().toISOString().slice(0, 7))).length, color: C.success },
+            { label: language === 'ar' ? 'إجمالي المشتريات' : 'Total Spent', value: fmt(customers.reduce((s, c) => s + (c.total_spent || 0), 0)), color: C.success },
+            { label: language === 'ar' ? 'جديد هذا الشهر' : 'New This Month', value: customers.filter(c => c.created_at?.startsWith(new Date().toISOString().slice(0, 7))).length, color: C.warning },
           ].map(card => (
             <div key={card.label} style={{ background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, padding: '14px 16px', borderTop: `3px solid ${card.color}` }}>
               <div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{card.label}</div>
@@ -139,16 +174,6 @@ export default function Customers() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('email')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
                 <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" style={inputStyle} />
               </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('tag')}</div>
-                <select value={form.tag} onChange={e => setForm({ ...form, tag: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  {TAGS.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('creditLimit')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
-                <input type="number" value={form.creditLimit} onChange={e => setForm({ ...form, creditLimit: e.target.value })} placeholder="0" style={inputStyle} />
-              </div>
               <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('address')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
                 <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder={t('address')} style={inputStyle} />
@@ -160,7 +185,9 @@ export default function Customers() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
               <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
-              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('addCustomer')}</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
+                {saving ? '...' : editingId ? t('save') : t('addCustomer')}
+              </button>
             </div>
           </div>
         </div>
@@ -182,13 +209,14 @@ export default function Customers() {
       )}
 
       {/* List */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted }}>{search ? t('noData') : t('noCustomers')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {filtered.map(customer => {
             const isVIP = customer.tag === 'VIP';
-            const hasDebt = customer.balance < 0;
             return (
               <div key={customer.id} style={{ background: C.white, borderRadius: 10, border: `1px solid ${isVIP ? '#B8860B44' : C.border}`, padding: isMobile ? '12px 14px' : '14px 20px', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexDirection: isRTL ? 'row-reverse' : 'row', boxShadow: `0 1px 4px ${C.shadow}` }}>
                 <div style={{ width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: '50%', flexShrink: 0, background: isVIP ? 'linear-gradient(135deg, #FFD700, #B8860B)' : `linear-gradient(135deg, ${C.info}22, ${C.info}11)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 15 : 18, fontWeight: 700, color: isVIP ? '#fff' : C.info, fontFamily: 'Georgia, serif' }}>
@@ -203,25 +231,12 @@ export default function Customers() {
                     {customer.phone}
                     {!isMobile && customer.email && ` · ${customer.email}`}
                   </div>
-                  {isMobile && (
-                    <div style={{ fontSize: 11, color: hasDebt ? C.red : C.success, fontWeight: 600, marginTop: 2 }}>
-                      {hasDebt ? `${t('owes')}: ${fmt(Math.abs(customer.balance))}` : customer.totalSpent > 0 ? `${t('totalSpent')}: ${fmt(customer.totalSpent)}` : ''}
-                    </div>
-                  )}
                 </div>
                 {!isMobile && (
                   <>
-                    <div style={{ textAlign: 'center', minWidth: 80 }}>
-                      <div style={{ fontSize: 10, color: C.textMuted }}>{t('totalPurchases')}</div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: C.charcoal }}>{customer.totalPurchases || 0}</div>
-                    </div>
                     <div style={{ textAlign: 'center', minWidth: 100 }}>
                       <div style={{ fontSize: 10, color: C.textMuted }}>{t('totalSpent')}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: C.charcoal }}>{fmt(customer.totalSpent || 0)}</div>
-                    </div>
-                    <div style={{ textAlign: 'center', minWidth: 90, padding: '6px 12px', borderRadius: 7, background: hasDebt ? `${C.red}12` : `${C.success}12` }}>
-                      <div style={{ fontSize: 10, color: C.textMuted }}>{hasDebt ? t('owes') : t('credit')}</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: hasDebt ? C.red : C.success }}>{fmt(Math.abs(customer.balance || 0))}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: C.charcoal }}>{fmt(customer.total_spent || 0)}</div>
                     </div>
                   </>
                 )}

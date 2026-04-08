@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { COLORS } from '../data/store';
-import { getReturns, saveReturns, getSales, getProducts, saveProducts, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
+import api from '../services/api';
 
 const STATUS_COLORS = {
   Pending: { bg: '#FFF7ED', border: '#FED7AA', text: '#C2410C' },
@@ -19,101 +18,98 @@ export default function Returns() {
   const { isMobile } = useWindowSize();
   const [returns, setReturns] = useState([]);
   const [sales, setSales] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({
-    saleId: '', customerName: '', returnType: 'Refund',
-    reason: '', refundAmount: '', restock: true,
-    status: 'Pending', notes: '',
-    returnedItems: [], date: new Date().toISOString().split('T')[0]
+    sale_id: '', customer_name: '', return_type: 'Refund',
+    reason: '', refund_amount: '', restock: true,
+    status: 'Pending', notes: '', date: new Date().toISOString().split('T')[0]
   });
 
-  useEffect(() => {
-    setReturns(getReturns());
-    setSales(getSales());
-    setProducts(getProducts());
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  function handleSave() {
-    if (!form.customerName.trim()) return alert(t('customers') + ' ' + t('required'));
-    if (!form.reason.trim()) return alert(t('reason') + ' ' + t('required'));
-    let updated;
-    if (editingId) {
-      updated = returns.map(r => r.id === editingId ? { ...r, ...form, refundAmount: parseFloat(form.refundAmount) || 0 } : r);
-    } else {
-      updated = [...returns, { id: generateId(), ...form, refundAmount: parseFloat(form.refundAmount) || 0, createdAt: new Date().toISOString() }];
-    }
-    saveReturns(updated);
-    setReturns(updated);
-    resetForm();
+  async function fetchAll() {
+    setLoading(true);
+    try {
+      const [rets, salesRes] = await Promise.all([
+        api.returns.getAll(),
+        api.pos.getSales({ per_page: 100 }),
+      ]);
+      setReturns(rets);
+      setSales(salesRes.sales || []);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }
 
-  function handleStatusChange(id, status) {
-    const returnItem = returns.find(r => r.id === id);
-    if (status === 'Approved' && returnItem.restock && returnItem.returnedItems?.length > 0) {
-      const updatedProducts = products.map(p => {
-        const returnedItem = returnItem.returnedItems.find(i => i.id === p.id);
-        if (returnedItem) return { ...p, stock: p.stock + returnedItem.qty };
-        return p;
-      });
-      saveProducts(updatedProducts);
-      setProducts(updatedProducts);
-    }
-    const updated = returns.map(r => r.id === id ? { ...r, status } : r);
-    saveReturns(updated);
-    setReturns(updated);
+  async function handleSave() {
+    if (!form.customer_name.trim()) return alert(t('customers') + ' ' + t('required'));
+    if (!form.reason.trim()) return alert(t('reason') + ' ' + t('required'));
+    setSaving(true);
+    try {
+      const payload = { ...form, refund_amount: parseFloat(form.refund_amount) || 0 };
+      if (editingId) {
+        const updated = await api.returns.update(editingId, payload);
+        setReturns(rs => rs.map(r => r.id === editingId ? updated : r));
+      } else {
+        const created = await api.returns.create(payload);
+        setReturns(rs => [created, ...rs]);
+      }
+      resetForm();
+    } catch (err) { alert(err.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleStatusChange(id, status) {
+    try {
+      const updated = await api.returns.updateStatus(id, status);
+      setReturns(rs => rs.map(r => r.id === id ? updated : r));
+    } catch (err) { alert(err.message); }
   }
 
   function handleEdit(ret) {
     setForm({
-      saleId: ret.saleId || '', customerName: ret.customerName || '',
-      returnType: ret.returnType || 'Refund', reason: ret.reason || '',
-      refundAmount: ret.refundAmount || '', restock: ret.restock !== false,
+      sale_id: ret.sale_id || '', customer_name: ret.customer_name || '',
+      return_type: ret.return_type || 'Refund', reason: ret.reason || '',
+      refund_amount: ret.refund_amount || '', restock: ret.restock !== false,
       status: ret.status || 'Pending', notes: ret.notes || '',
-      returnedItems: ret.returnedItems || [],
       date: ret.date || new Date().toISOString().split('T')[0]
     });
     setEditingId(ret.id);
     setShowForm(true);
   }
 
-  function handleDelete(id) {
-    const updated = returns.filter(r => r.id !== id);
-    saveReturns(updated);
-    setReturns(updated);
-    setDeleteConfirm(null);
+  async function handleDelete(id) {
+    try {
+      await api.returns.delete(id);
+      setReturns(rs => rs.filter(r => r.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) { alert(err.message); }
   }
 
   function resetForm() {
-    setForm({ saleId: '', customerName: '', returnType: 'Refund', reason: '', refundAmount: '', restock: true, status: 'Pending', notes: '', returnedItems: [], date: new Date().toISOString().split('T')[0] });
+    setForm({ sale_id: '', customer_name: '', return_type: 'Refund', reason: '', refund_amount: '', restock: true, status: 'Pending', notes: '', date: new Date().toISOString().split('T')[0] });
     setEditingId(null);
     setShowForm(false);
   }
 
   const filtered = returns.filter(r => {
     const matchStatus = filterStatus === 'all' || r.status === filterStatus;
-    const matchSearch = r.customerName?.toLowerCase().includes(search.toLowerCase()) || r.reason?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (r.customer_name || '').toLowerCase().includes(search.toLowerCase()) || (r.reason || '').toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
 
-  const totalRefunded = returns.filter(r => r.status === 'Approved' && r.returnType === 'Refund').reduce((sum, r) => sum + r.refundAmount, 0);
+  const totalRefunded = returns.filter(r => r.status === 'Approved' && r.return_type === 'Refund').reduce((sum, r) => sum + r.refund_amount, 0);
   const opt = language === 'ar' ? 'اختياري' : 'Optional';
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
-
-  const inputStyle = {
-    width: '100%', padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 7,
-    fontSize: 13, color: C.charcoal, outline: 'none', boxSizing: 'border-box',
-    background: C.white, textAlign: isRTL ? 'right' : 'left'
-  };
+  const inputStyle = { width: '100%', padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.charcoal, outline: 'none', boxSizing: 'border-box', background: C.white, textAlign: isRTL ? 'right' : 'left' };
 
   return (
     <div style={{ padding: isMobile ? 14 : 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
-
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 14 : 20 }}>
         <div>
           <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{t('returns')}</div>
@@ -126,7 +122,6 @@ export default function Returns() {
         </button>
       </div>
 
-      {/* Summary */}
       {!isMobile && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
           {[
@@ -142,7 +137,6 @@ export default function Returns() {
         </div>
       )}
 
-      {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
         <input placeholder={`${t('search')}...`} value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.charcoal, outline: 'none', background: C.white, textAlign: isRTL ? 'right' : 'left' }} />
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.charcoal, outline: 'none', background: C.white, cursor: 'pointer' }}>
@@ -153,7 +147,6 @@ export default function Returns() {
         </select>
       </div>
 
-      {/* Modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000, padding: isMobile ? 0 : 20 }}>
           <div style={{ background: C.white, borderRadius: isMobile ? '16px 16px 0 0' : 14, padding: isMobile ? '20px 16px' : 28, width: isMobile ? '100%' : 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
@@ -161,18 +154,18 @@ export default function Returns() {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('customers')} *</div>
-                <select value={form.saleId} onChange={e => {
-                  const sale = sales.find(s => s.id === e.target.value);
-                  setForm({ ...form, saleId: e.target.value, customerName: sale?.customerName || '', refundAmount: sale?.total || '' });
+                <select value={form.sale_id} onChange={e => {
+                  const sale = sales.find(s => s.id === parseInt(e.target.value));
+                  setForm({ ...form, sale_id: e.target.value, customer_name: sale?.customer || '', refund_amount: sale?.total || '' });
                 }} style={{ ...inputStyle, cursor: 'pointer', marginBottom: 6 }}>
                   <option value="">{language === 'ar' ? 'اختر فاتورة' : 'Select sale (optional)'}</option>
-                  {sales.map(s => <option key={s.id} value={s.id}>#{s.id.slice(-6).toUpperCase()} — {s.customerName} — {fmt(s.total)}</option>)}
+                  {sales.map(s => <option key={s.id} value={s.id}>#{s.invoice_number} — {s.customer} — {fmt(s.total)}</option>)}
                 </select>
-                {!form.saleId && <input value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} placeholder={language === 'ar' ? 'اسم العميل يدوياً *' : 'Customer name manually *'} style={inputStyle} />}
+                {!form.sale_id && <input value={form.customer_name} onChange={e => setForm({ ...form, customer_name: e.target.value })} placeholder={language === 'ar' ? 'اسم العميل يدوياً *' : 'Customer name manually *'} style={inputStyle} />}
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('returnType')}</div>
-                <select value={form.returnType} onChange={e => setForm({ ...form, returnType: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <select value={form.return_type} onChange={e => setForm({ ...form, return_type: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
                   <option value="Refund">{t('refund')}</option>
                   <option value="Exchange">{t('exchange')}</option>
                 </select>
@@ -185,10 +178,10 @@ export default function Returns() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('reason')} *</div>
                 <textarea value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
               </div>
-              {form.returnType === 'Refund' && (
+              {form.return_type === 'Refund' && (
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('refundAmount')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
-                  <input type="number" value={form.refundAmount} onChange={e => setForm({ ...form, refundAmount: e.target.value })} placeholder="0" style={inputStyle} />
+                  <input type="number" value={form.refund_amount} onChange={e => setForm({ ...form, refund_amount: e.target.value })} placeholder="0" style={inputStyle} />
                 </div>
               )}
               <div>
@@ -212,13 +205,14 @@ export default function Returns() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
               <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
-              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('newReturn')}</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
+                {saving ? '...' : editingId ? t('save') : t('newReturn')}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirm */}
       {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: C.white, borderRadius: 12, padding: 28, width: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center' }}>
@@ -233,12 +227,13 @@ export default function Returns() {
         </div>
       )}
 
-      {/* List */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted }}>{t('noReturns')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
-          {filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(ret => {
+          {filtered.map(ret => {
             const sc = STATUS_COLORS[ret.status] || STATUS_COLORS.Pending;
             return (
               <div key={ret.id} style={{ background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, padding: isMobile ? '12px 14px' : '14px 20px', boxShadow: `0 1px 4px ${C.shadow}` }}>
@@ -246,14 +241,14 @@ export default function Returns() {
                   <div style={{ width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: 10, flexShrink: 0, background: `${C.warning}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 18 : 22 }}>🔄</div>
                   <div style={{ flex: 1, minWidth: 0, textAlign: isRTL ? 'right' : 'left' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-                      <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: C.charcoal }}>{ret.customerName}</span>
+                      <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: C.charcoal }}>{ret.customer_name}</span>
                       <span style={{ background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>{ret.status}</span>
-                      <span style={{ background: `${C.info}15`, border: `1px solid ${C.info}33`, color: C.info, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>{ret.returnType}</span>
+                      <span style={{ background: `${C.info}15`, border: `1px solid ${C.info}33`, color: C.info, fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>{ret.return_type}</span>
                     </div>
                     <div style={{ fontSize: isMobile ? 11 : 12, color: C.textMuted, marginTop: 2 }}>{ret.reason}</div>
                     <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted, marginTop: 2 }}>
                       📅 {ret.date}
-                      {ret.refundAmount > 0 && ` · 💰 ${fmt(ret.refundAmount)}`}
+                      {ret.refund_amount > 0 && ` · 💰 ${fmt(ret.refund_amount)}`}
                       {ret.restock && ` · 📦 ${language === 'ar' ? 'إعادة للمخزون' : 'Restock'}`}
                     </div>
                   </div>

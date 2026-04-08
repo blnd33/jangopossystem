@@ -1,29 +1,26 @@
 import { useState, useEffect } from 'react';
-import { COLORS } from '../data/store';
-import {
-  getSales, getExpenses, getProducts, getCustomers,
-  getEmployees, getPurchaseOrders, getReturns, getSuppliers
-} from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
-
-const PERIODS = ['daily', 'monthly', 'yearly', 'custom'];
+import api from '../services/api';
 
 export default function Reports() {
   const { t, isRTL, language } = useLanguage();
   const { fmt } = useCurrency();
   const C = useThemeColors();
   const { isMobile } = useWindowSize();
+
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [returns, setReturns] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [topProducts, setTopProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [period, setPeriod] = useState('monthly');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -32,16 +29,35 @@ export default function Reports() {
   const [customEnd, setCustomEnd] = useState('');
   const [activeReport, setActiveReport] = useState('full');
 
-  useEffect(() => {
-    setSales(getSales());
-    setExpenses(getExpenses());
-    setProducts(getProducts());
-    setCustomers(getCustomers());
-    setEmployees(getEmployees());
-    setOrders(getPurchaseOrders());
-    setReturns(getReturns());
-    setSuppliers(getSuppliers());
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
+
+  async function fetchAll() {
+    setLoading(true);
+    try {
+      const [salesRes, expsRes, prodsRes, custsRes, empsRes, ordersRes, pmRes, topRes] = await Promise.all([
+        api.pos.getSales({ per_page: 1000 }),
+        api.expenses.getAll(),
+        api.products.getAll(),
+        api.customers.getAll(),
+        api.employees.getAll(),
+        api.purchaseOrders.getAll(),
+        api.dashboard.getPaymentMethods(),
+        api.dashboard.getTopProducts({ limit: 20 }),
+      ]);
+      setSales(salesRes.sales || []);
+      setExpenses(expsRes);
+      setProducts(prodsRes);
+      setCustomers(custsRes);
+      setEmployees(empsRes);
+      setOrders(ordersRes);
+      setPaymentMethods(pmRes);
+      setTopProducts(topRes);
+    } catch (err) {
+      console.error('Reports fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const settings = JSON.parse(localStorage.getItem('jango_settings') || '{}');
   const companyName = settings.companyName || 'Jango';
@@ -61,47 +77,24 @@ export default function Reports() {
     return items;
   }
 
-  const filteredSales = filterByPeriod(sales, 'date');
+  const filteredSales = filterByPeriod(sales, 'created_at');
   const filteredExpenses = filterByPeriod(expenses, 'date');
-  const filteredOrders = filterByPeriod(orders, 'orderDate');
-  const filteredReturns = filterByPeriod(returns, 'date');
+  const filteredOrders = filterByPeriod(orders, 'order_date');
 
   const totalRevenue = filteredSales.reduce((sum, s) => sum + s.total, 0);
-  const totalCogs = filteredSales.reduce((sum, s) => sum + s.items.reduce((ps, item) => ps + item.costPrice * item.qty, 0), 0);
-  const grossProfit = totalRevenue - totalCogs;
-  const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const netProfit = grossProfit - totalExpenses;
-  const totalPaid = filteredSales.reduce((sum, s) => sum + s.amountPaid, 0);
-  const totalRemaining = filteredSales.reduce((sum, s) => sum + s.remaining, 0);
-  const totalRefunds = filteredReturns.filter(r => r.status === 'Approved' && r.returnType === 'Refund').reduce((sum, r) => sum + r.refundAmount, 0);
+  const totalExpensesAmt = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const grossProfit = totalRevenue * 0.4;
+  const netProfit = grossProfit - totalExpensesAmt;
+  const totalPaid = filteredSales.reduce((sum, s) => sum + (s.amount_paid || 0), 0);
   const totalOrdersValue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
-  const totalDebt = customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
-  const inventoryValue = products.reduce((sum, p) => sum + p.costPrice * p.stock, 0);
-  const inventoryRetailValue = products.reduce((sum, p) => sum + p.sellPrice * p.stock, 0);
+  const inventoryValue = products.filter(p => p.is_active).reduce((sum, p) => sum + (p.cost || 0) * p.stock, 0);
+  const inventoryRetailValue = products.filter(p => p.is_active).reduce((sum, p) => sum + p.price * p.stock, 0);
   const activeEmployees = employees.filter(e => e.status === 'Active');
-  const totalSalaries = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
+  const totalSalaries = activeEmployees.reduce((sum, e) => sum + (e.salary || 0), 0);
 
   const expenseByCategory = filteredExpenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount;
-    return acc;
-  }, {});
-
-  const productSales = {};
-  filteredSales.forEach(sale => {
-    sale.items.forEach(item => {
-      if (!productSales[item.name]) productSales[item.name] = { qty: 0, revenue: 0, profit: 0 };
-      productSales[item.name].qty += item.qty;
-      productSales[item.name].revenue += item.sellPrice * item.qty;
-      productSales[item.name].profit += (item.sellPrice - item.costPrice) * item.qty;
-    });
-  });
-  const topProducts = Object.entries(productSales).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.revenue - a.revenue);
-
-  const paymentBreakdown = filteredSales.reduce((acc, s) => {
-    const method = s.paymentMethod || 'cash';
-    if (!acc[method]) acc[method] = { count: 0, amount: 0 };
-    acc[method].count++;
-    acc[method].amount += s.total;
+    const cat = e.category || 'Other';
+    acc[cat] = (acc[cat] || 0) + e.amount;
     return acc;
   }, {});
 
@@ -113,7 +106,10 @@ export default function Reports() {
     return '';
   }
 
-  const months = Array.from({ length: 24 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
+  const months = Array.from({ length: 24 }, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    return d.toISOString().slice(0, 7);
+  });
   const years = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
 
   const REPORTS = [
@@ -128,19 +124,9 @@ export default function Reports() {
     { id: 'orders', label: isMobile ? (language === 'ar' ? 'طلبات' : 'Orders') : t('purchaseOrders'), icon: '📋' },
   ];
 
-  const printStyle = `
-    @media print {
-      @page { size: A4; margin: 15mm; }
-      body * { visibility: hidden !important; }
-      #print-report, #print-report * { visibility: visible !important; }
-      #print-report { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0 !important; }
-      .no-print { display: none !important; }
-    }
-  `;
-
+  const printStyle = `@media print { @page { size: A4; margin: 15mm; } body * { visibility: hidden !important; } #print-report, #print-report * { visibility: visible !important; } #print-report { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0 !important; } .no-print { display: none !important; } }`;
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
 
-  // Reusable row component
   function TR({ label, value, color, bold, highlight }) {
     return (
       <tr style={{ borderBottom: `1px solid ${C.border}`, background: highlight ? `${color}08` : 'none' }}>
@@ -151,16 +137,14 @@ export default function Reports() {
   }
 
   function SectionTitle({ title }) {
-    return (
-      <div style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, color: C.charcoal, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.charcoal}` }}>
-        {title}
-      </div>
-    );
+    return <div style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, color: C.charcoal, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.charcoal}` }}>{title}</div>;
   }
 
   const tableStyle = { width: '100%', borderCollapse: 'collapse', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 8 };
-  function thStyle() { return { padding: isMobile ? '7px 10px' : '8px 12px', fontSize: isMobile ? 9 : 11, fontWeight: 700, color: C.textMuted, textAlign: isRTL ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: 0.5 }; }
-  function tdStyle() { return { padding: isMobile ? '7px 10px' : '8px 12px', fontSize: isMobile ? 11 : 12, color: C.charcoal, textAlign: isRTL ? 'right' : 'left' }; }
+  const thS = () => ({ padding: isMobile ? '7px 10px' : '8px 12px', fontSize: isMobile ? 9 : 11, fontWeight: 700, color: C.textMuted, textAlign: isRTL ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: 0.5 });
+  const tdS = () => ({ padding: isMobile ? '7px 10px' : '8px 12px', fontSize: isMobile ? 11 : 12, color: C.charcoal, textAlign: isRTL ? 'right' : 'left' });
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>;
 
   return (
     <div style={{ padding: isMobile ? 14 : 24, direction: isRTL ? 'rtl' : 'ltr', fontFamily }}>
@@ -182,34 +166,19 @@ export default function Reports() {
       </div>
 
       {/* Controls */}
-      <div className="no-print" style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.border}`, padding: isMobile ? '14px' : '20px 24px', marginBottom: 16 }}>
-
-        {/* Report Type */}
+      <div className="no-print" style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.border}`, padding: isMobile ? 14 : '20px 24px', marginBottom: 16 }}>
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-            {language === 'ar' ? 'نوع التقرير' : 'Report Type'}
-          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{language === 'ar' ? 'نوع التقرير' : 'Report Type'}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
             {REPORTS.map(r => (
-              <button key={r.id} onClick={() => setActiveReport(r.id)} style={{
-                padding: isMobile ? '6px 10px' : '7px 14px', borderRadius: 8, cursor: 'pointer',
-                border: `1px solid ${activeReport === r.id ? C.red : C.border}`,
-                background: activeReport === r.id ? `${C.red}12` : C.white,
-                color: activeReport === r.id ? C.red : C.charcoalMid,
-                fontSize: isMobile ? 11 : 12, fontWeight: activeReport === r.id ? 600 : 400,
-                display: 'flex', alignItems: 'center', gap: 4
-              }}>
+              <button key={r.id} onClick={() => setActiveReport(r.id)} style={{ padding: isMobile ? '6px 10px' : '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${activeReport === r.id ? C.red : C.border}`, background: activeReport === r.id ? `${C.red}12` : C.white, color: activeReport === r.id ? C.red : C.charcoalMid, fontSize: isMobile ? 11 : 12, fontWeight: activeReport === r.id ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
                 {r.icon} {r.label}
               </button>
             ))}
           </div>
         </div>
-
-        {/* Period */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-            {language === 'ar' ? 'الفترة' : 'Period'}
-          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{language === 'ar' ? 'الفترة' : 'Period'}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
             <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
               {[
@@ -250,19 +219,13 @@ export default function Reports() {
 
         {/* Report Header */}
         <div style={{ textAlign: 'center', marginBottom: 20, paddingBottom: 14, borderBottom: `2px solid ${C.charcoal}` }}>
-          <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 900, color: C.charcoal, letterSpacing: 1, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
-            {language === 'ar' ? 'جانغو' : companyName.toUpperCase()}
-          </div>
+          <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 900, color: C.charcoal, letterSpacing: 1, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>{language === 'ar' ? 'جانغو' : companyName.toUpperCase()}</div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{companyAddress} {companyPhone && `· ${companyPhone}`}</div>
           <div style={{ marginTop: 10, display: 'inline-block', background: C.charcoal, color: '#fff', padding: '4px 18px', borderRadius: 20, fontSize: isMobile ? 11 : 13, fontWeight: 700 }}>
             {REPORTS.find(r => r.id === activeReport)?.icon} {REPORTS.find(r => r.id === activeReport)?.label}
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
-            {language === 'ar' ? 'الفترة:' : 'Period:'} {getPeriodLabel()}
-          </div>
-          <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>
-            {language === 'ar' ? 'تاريخ الطباعة:' : 'Printed:'} {new Date().toLocaleString(language === 'ar' ? 'ar-IQ' : 'en-GB')}
-          </div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>{language === 'ar' ? 'الفترة:' : 'Period:'} {getPeriodLabel()}</div>
+          <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{language === 'ar' ? 'تاريخ الطباعة:' : 'Printed:'} {new Date().toLocaleString(language === 'ar' ? 'ar-IQ' : 'en-GB')}</div>
         </div>
 
         {/* P&L */}
@@ -272,9 +235,8 @@ export default function Reports() {
             <table style={tableStyle}>
               <tbody>
                 <TR label={language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'} value={fmt(totalRevenue)} color={C.success} bold />
-                <TR label={language === 'ar' ? 'تكلفة البضاعة' : 'Cost of Goods'} value={`-${fmt(totalCogs)}`} color={C.red} />
-                <TR label={language === 'ar' ? 'إجمالي الربح' : 'Gross Profit'} value={fmt(grossProfit)} color={grossProfit >= 0 ? C.success : C.red} bold highlight />
-                <TR label={language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses'} value={`-${fmt(totalExpenses)}`} color={C.red} />
+                <TR label={language === 'ar' ? 'إجمالي الربح (تقديري 40%)' : 'Gross Profit (est. 40%)'} value={fmt(grossProfit)} color={grossProfit >= 0 ? C.success : C.red} bold highlight />
+                <TR label={language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses'} value={`-${fmt(totalExpensesAmt)}`} color={C.red} />
                 <TR label={language === 'ar' ? 'صافي الربح' : 'Net Profit'} value={fmt(netProfit)} color={netProfit >= 0 ? C.success : C.red} bold highlight />
                 <TR label={language === 'ar' ? 'هامش الربح' : 'Net Margin'} value={totalRevenue > 0 ? `${((netProfit / totalRevenue) * 100).toFixed(1)}%` : '0%'} color={C.info} />
               </tbody>
@@ -291,27 +253,26 @@ export default function Reports() {
                 <TR label={language === 'ar' ? 'عدد الفواتير' : 'Transactions'} value={filteredSales.length} />
                 <TR label={language === 'ar' ? 'إجمالي المبيعات' : 'Total Revenue'} value={fmt(totalRevenue)} color={C.success} bold />
                 <TR label={language === 'ar' ? 'المبلغ المحصل' : 'Collected'} value={fmt(totalPaid)} color={C.success} />
-                <TR label={language === 'ar' ? 'المتبقي' : 'Remaining'} value={fmt(totalRemaining)} color={C.red} />
                 <TR label={language === 'ar' ? 'متوسط الفاتورة' : 'Avg Transaction'} value={filteredSales.length > 0 ? fmt(totalRevenue / filteredSales.length) : fmt(0)} />
               </tbody>
             </table>
 
             {/* Payment Methods */}
-            {Object.keys(paymentBreakdown).length > 0 && (
+            {paymentMethods.length > 0 && (
               <>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoalMid, margin: '14px 0 8px' }}>{language === 'ar' ? 'طرق الدفع' : 'Payment Methods'}</div>
                 <table style={tableStyle}>
                   <thead><tr style={{ background: C.offWhite }}>
-                    <th style={thStyle()}>{language === 'ar' ? 'الطريقة' : 'Method'}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'العدد' : 'Count'}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
+                    <th style={thS()}>{language === 'ar' ? 'الطريقة' : 'Method'}</th>
+                    <th style={{ ...thS(), textAlign: 'right' }}>{language === 'ar' ? 'العدد' : 'Count'}</th>
+                    <th style={{ ...thS(), textAlign: 'right' }}>{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
                   </tr></thead>
                   <tbody>
-                    {Object.entries(paymentBreakdown).map(([method, data]) => (
-                      <tr key={method} style={{ borderBottom: `1px solid ${C.border}` }}>
-                        <td style={tdStyle()}>{t(method) || method}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right' }}>{data.count}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right', fontWeight: 600 }}>{fmt(data.amount)}</td>
+                    {paymentMethods.map(pm => (
+                      <tr key={pm.method} style={{ borderBottom: `1px solid ${C.border}` }}>
+                        <td style={tdS()}>{pm.method}</td>
+                        <td style={{ ...tdS(), textAlign: 'right' }}>{pm.count}</td>
+                        <td style={{ ...tdS(), textAlign: 'right', fontWeight: 600 }}>{fmt(pm.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -325,18 +286,16 @@ export default function Reports() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoalMid, margin: '14px 0 8px' }}>{language === 'ar' ? 'أفضل المنتجات' : 'Top Products'}</div>
                 <table style={tableStyle}>
                   <thead><tr style={{ background: C.offWhite }}>
-                    <th style={thStyle()}>{t('productName')}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'كمية' : 'Qty'}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'إيراد' : 'Revenue'}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'ربح' : 'Profit'}</th>
+                    <th style={thS()}>{t('productName')}</th>
+                    <th style={{ ...thS(), textAlign: 'right' }}>{language === 'ar' ? 'كمية' : 'Qty'}</th>
+                    <th style={{ ...thS(), textAlign: 'right' }}>{language === 'ar' ? 'إيراد' : 'Revenue'}</th>
                   </tr></thead>
                   <tbody>
                     {topProducts.map((p, i) => (
-                      <tr key={p.name} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.offWhite }}>
-                        <td style={tdStyle()}>{p.name}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right' }}>{p.qty}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right', fontWeight: 600 }}>{fmt(p.revenue)}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right', color: C.success, fontWeight: 600 }}>{fmt(p.profit)}</td>
+                      <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.offWhite }}>
+                        <td style={tdS()}>{p.name}</td>
+                        <td style={{ ...tdS(), textAlign: 'right' }}>{p.qty_sold}</td>
+                        <td style={{ ...tdS(), textAlign: 'right', fontWeight: 600 }}>{fmt(p.revenue)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -353,7 +312,7 @@ export default function Reports() {
             <table style={tableStyle}>
               <tbody>
                 <TR label={language === 'ar' ? 'عدد المصروفات' : 'Total Entries'} value={filteredExpenses.length} />
-                <TR label={language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses'} value={fmt(totalExpenses)} color={C.red} bold />
+                <TR label={language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses'} value={fmt(totalExpensesAmt)} color={C.red} bold />
               </tbody>
             </table>
             {Object.keys(expenseByCategory).length > 0 && (
@@ -361,16 +320,16 @@ export default function Reports() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoalMid, margin: '14px 0 8px' }}>{language === 'ar' ? 'حسب الفئة' : 'By Category'}</div>
                 <table style={tableStyle}>
                   <thead><tr style={{ background: C.offWhite }}>
-                    <th style={thStyle()}>{language === 'ar' ? 'الفئة' : 'Category'}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>%</th>
+                    <th style={thS()}>{language === 'ar' ? 'الفئة' : 'Category'}</th>
+                    <th style={{ ...thS(), textAlign: 'right' }}>{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
+                    <th style={{ ...thS(), textAlign: 'right' }}>%</th>
                   </tr></thead>
                   <tbody>
                     {Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).map(([cat, amount], i) => (
                       <tr key={cat} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.offWhite }}>
-                        <td style={tdStyle()}>{cat}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right', fontWeight: 600 }}>{fmt(amount)}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right', color: C.textMuted }}>{totalExpenses > 0 ? `${((amount / totalExpenses) * 100).toFixed(1)}%` : '0%'}</td>
+                        <td style={tdS()}>{cat}</td>
+                        <td style={{ ...tdS(), textAlign: 'right', fontWeight: 600 }}>{fmt(amount)}</td>
+                        <td style={{ ...tdS(), textAlign: 'right', color: C.textMuted }}>{totalExpensesAmt > 0 ? `${((amount / totalExpensesAmt) * 100).toFixed(1)}%` : '0%'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -387,9 +346,8 @@ export default function Reports() {
             <table style={tableStyle}>
               <tbody>
                 <TR label={language === 'ar' ? 'الأموال الواردة' : 'Money In'} value={fmt(totalPaid)} color={C.success} bold />
-                <TR label={language === 'ar' ? 'الأموال الصادرة' : 'Money Out'} value={`-${fmt(totalExpenses)}`} color={C.red} bold />
-                <TR label={language === 'ar' ? 'المبالغ المستردة' : 'Refunds'} value={`-${fmt(totalRefunds)}`} color={C.red} />
-                <TR label={language === 'ar' ? 'صافي التدفق' : 'Net Cash Flow'} value={fmt(totalPaid - totalExpenses - totalRefunds)} color={(totalPaid - totalExpenses - totalRefunds) >= 0 ? C.success : C.red} bold highlight />
+                <TR label={language === 'ar' ? 'الأموال الصادرة' : 'Money Out'} value={`-${fmt(totalExpensesAmt)}`} color={C.red} bold />
+                <TR label={language === 'ar' ? 'صافي التدفق' : 'Net Cash Flow'} value={fmt(totalPaid - totalExpensesAmt)} color={(totalPaid - totalExpensesAmt) >= 0 ? C.success : C.red} bold highlight />
               </tbody>
             </table>
           </div>
@@ -401,12 +359,12 @@ export default function Reports() {
             <SectionTitle title={language === 'ar' ? '📦 تقرير المخزون' : '📦 Inventory Report'} />
             <table style={tableStyle}>
               <tbody>
-                <TR label={language === 'ar' ? 'إجمالي المنتجات' : 'Total Products'} value={products.length} />
+                <TR label={language === 'ar' ? 'إجمالي المنتجات' : 'Total Products'} value={products.filter(p => p.is_active).length} />
                 <TR label={language === 'ar' ? 'قيمة المخزون (تكلفة)' : 'Stock Value (Cost)'} value={fmt(inventoryValue)} color={C.info} bold />
                 <TR label={language === 'ar' ? 'قيمة المخزون (بيع)' : 'Stock Value (Retail)'} value={fmt(inventoryRetailValue)} color={C.success} bold />
                 <TR label={language === 'ar' ? 'الربح المتوقع' : 'Potential Profit'} value={fmt(inventoryRetailValue - inventoryValue)} color={C.success} />
-                <TR label={language === 'ar' ? 'نفد المخزون' : 'Out of Stock'} value={products.filter(p => p.stock === 0).length} color={C.red} />
-                <TR label={language === 'ar' ? 'مخزون منخفض' : 'Low Stock'} value={products.filter(p => p.stock > 0 && p.stock <= (p.lowStockAlert || 5)).length} color={C.warning} />
+                <TR label={language === 'ar' ? 'نفد المخزون' : 'Out of Stock'} value={products.filter(p => p.stock === 0 && p.is_active).length} color={C.red} />
+                <TR label={language === 'ar' ? 'مخزون منخفض' : 'Low Stock'} value={products.filter(p => p.stock > 0 && p.stock <= (p.low_stock_alert || 5) && p.is_active).length} color={C.warning} />
               </tbody>
             </table>
           </div>
@@ -419,31 +377,9 @@ export default function Reports() {
             <table style={tableStyle}>
               <tbody>
                 <TR label={language === 'ar' ? 'إجمالي العملاء' : 'Total Customers'} value={customers.length} />
-                <TR label="VIP" value={customers.filter(c => c.tag === 'VIP').length} />
-                <TR label={language === 'ar' ? 'إجمالي الديون' : 'Total Debt'} value={fmt(totalDebt)} color={C.red} bold />
+                <TR label={language === 'ar' ? 'إجمالي المشتريات' : 'Total Spent'} value={fmt(customers.reduce((s, c) => s + (c.total_spent || 0), 0))} color={C.success} bold />
               </tbody>
             </table>
-            {customers.filter(c => c.balance < 0).length > 0 && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoalMid, margin: '14px 0 8px' }}>{language === 'ar' ? 'العملاء المدينون' : 'Customers with Debt'}</div>
-                <table style={tableStyle}>
-                  <thead><tr style={{ background: C.offWhite }}>
-                    <th style={thStyle()}>{t('name')}</th>
-                    <th style={thStyle()}>{t('phone')}</th>
-                    <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'الدين' : 'Debt'}</th>
-                  </tr></thead>
-                  <tbody>
-                    {customers.filter(c => c.balance < 0).map((c, i) => (
-                      <tr key={c.id} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.offWhite }}>
-                        <td style={tdStyle()}>{c.name}</td>
-                        <td style={tdStyle()}>{c.phone}</td>
-                        <td style={{ ...tdStyle(), textAlign: 'right', color: C.red, fontWeight: 700 }}>{fmt(Math.abs(c.balance))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
           </div>
         )}
 
@@ -461,21 +397,21 @@ export default function Reports() {
             {activeEmployees.length > 0 && (
               <table style={tableStyle}>
                 <thead><tr style={{ background: C.offWhite }}>
-                  <th style={thStyle()}>{t('name')}</th>
-                  <th style={thStyle()}>{t('role')}</th>
-                  <th style={{ ...thStyle(), textAlign: 'right' }}>{language === 'ar' ? 'الراتب' : 'Salary'}</th>
+                  <th style={thS()}>{t('name')}</th>
+                  <th style={thS()}>{t('role')}</th>
+                  <th style={{ ...thS(), textAlign: 'right' }}>{language === 'ar' ? 'الراتب' : 'Salary'}</th>
                 </tr></thead>
                 <tbody>
                   {activeEmployees.map((emp, i) => (
                     <tr key={emp.id} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.offWhite }}>
-                      <td style={tdStyle()}>{emp.name}</td>
-                      <td style={tdStyle()}>{emp.role}</td>
-                      <td style={{ ...tdStyle(), textAlign: 'right', fontWeight: 600 }}>{fmt(emp.salary)}</td>
+                      <td style={tdS()}>{emp.name}</td>
+                      <td style={tdS()}>{emp.role}</td>
+                      <td style={{ ...tdS(), textAlign: 'right', fontWeight: 600 }}>{fmt(emp.salary)}</td>
                     </tr>
                   ))}
                   <tr style={{ borderTop: `2px solid ${C.charcoal}`, background: C.offWhite }}>
-                    <td colSpan={2} style={{ ...tdStyle(), fontWeight: 700 }}>{language === 'ar' ? 'الإجمالي' : 'Total'}</td>
-                    <td style={{ ...tdStyle(), textAlign: 'right', fontWeight: 800, color: C.red }}>{fmt(totalSalaries)}</td>
+                    <td colSpan={2} style={{ ...tdS(), fontWeight: 700 }}>{language === 'ar' ? 'الإجمالي' : 'Total'}</td>
+                    <td style={{ ...tdS(), textAlign: 'right', fontWeight: 800, color: C.red }}>{fmt(totalSalaries)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -498,12 +434,8 @@ export default function Reports() {
 
         {/* Footer */}
         <div style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 14, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: C.textMuted }}>
-            {language === 'ar' ? 'تم إنشاء هذا التقرير بواسطة' : 'Generated by'} {companyName} POS
-          </div>
-          <div style={{ fontSize: 9, color: C.textMuted, marginTop: 6, letterSpacing: 0.5 }}>
-            Powered by CodaTechAgency
-          </div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>{language === 'ar' ? 'تم إنشاء هذا التقرير بواسطة' : 'Generated by'} {companyName} POS</div>
+          <div style={{ fontSize: 9, color: C.textMuted, marginTop: 6, letterSpacing: 0.5 }}>Powered by CodaTechAgency</div>
         </div>
       </div>
     </div>

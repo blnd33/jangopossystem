@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { COLORS } from '../data/store';
-import { getExpenses, saveExpenses, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
+import api from '../services/api';
 
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Transport', 'Supplies', 'Maintenance', 'Other'];
 
@@ -14,41 +13,77 @@ export default function Expenses() {
   const C = useThemeColors();
   const { isMobile } = useWindowSize();
   const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [form, setForm] = useState({ title: '', category: 'Rent', amount: '', date: new Date().toISOString().split('T')[0], vendor: '', notes: '', recurring: false });
+  const [form, setForm] = useState({
+    title: '', category: 'Rent', amount: '',
+    date: new Date().toISOString().split('T')[0],
+    vendor: '', notes: '', recurring: false
+  });
 
-  useEffect(() => { setExpenses(getExpenses()); }, []);
+  useEffect(() => { fetchExpenses(); }, []);
 
-  function handleSave() {
+  async function fetchExpenses() {
+    setLoading(true);
+    try {
+      const data = await api.expenses.getAll();
+      setExpenses(data);
+    } catch (err) {
+      console.error('Expenses fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave() {
     if (!form.title.trim()) return alert(t('expenseTitle') + ' ' + t('required'));
     if (!form.amount) return alert(t('amount') + ' ' + t('required'));
-    let updated;
-    if (editingId) {
-      updated = expenses.map(e => e.id === editingId ? { ...e, ...form, amount: parseFloat(form.amount) } : e);
-    } else {
-      updated = [...expenses, { id: generateId(), ...form, amount: parseFloat(form.amount), createdAt: new Date().toISOString() }];
+    setSaving(true);
+    try {
+      const payload = { ...form, amount: parseFloat(form.amount) };
+      if (editingId) {
+        const updated = await api.expenses.update(editingId, payload);
+        setExpenses(es => es.map(e => e.id === editingId ? updated : e));
+      } else {
+        const created = await api.expenses.create(payload);
+        setExpenses(es => [created, ...es]);
+      }
+      resetForm();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
     }
-    saveExpenses(updated);
-    setExpenses(updated);
-    resetForm();
   }
 
   function handleEdit(expense) {
-    setForm({ title: expense.title, category: expense.category, amount: expense.amount, date: expense.date, vendor: expense.vendor || '', notes: expense.notes || '', recurring: expense.recurring || false });
+    setForm({
+      title: expense.title,
+      category: expense.category || 'Rent',
+      amount: expense.amount,
+      date: expense.date || new Date().toISOString().split('T')[0],
+      vendor: expense.vendor || '',
+      notes: expense.note || '',
+      recurring: expense.recurring || false,
+    });
     setEditingId(expense.id);
     setShowForm(true);
   }
 
-  function handleDelete(id) {
-    const updated = expenses.filter(e => e.id !== id);
-    saveExpenses(updated);
-    setExpenses(updated);
-    setDeleteConfirm(null);
+  async function handleDelete(id) {
+    try {
+      await api.expenses.delete(id);
+      setExpenses(es => es.filter(e => e.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function resetForm() {
@@ -58,9 +93,9 @@ export default function Expenses() {
   }
 
   const filtered = expenses.filter(e => {
-    const matchSearch = e.title.toLowerCase().includes(search.toLowerCase()) || e.vendor?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = e.title.toLowerCase().includes(search.toLowerCase()) || (e.vendor || '').toLowerCase().includes(search.toLowerCase());
     const matchCat = filterCategory === 'all' || e.category === filterCategory;
-    const matchMonth = !filterMonth || e.date.startsWith(filterMonth);
+    const matchMonth = !filterMonth || (e.date || '').startsWith(filterMonth);
     return matchSearch && matchCat && matchMonth;
   });
 
@@ -165,7 +200,9 @@ export default function Expenses() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
               <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
-              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('addExpense')}</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
+                {saving ? '...' : editingId ? t('save') : t('addExpense')}
+              </button>
             </div>
           </div>
         </div>
@@ -187,21 +224,21 @@ export default function Expenses() {
       )}
 
       {/* List */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted }}>{search ? t('noData') : t('noExpenses')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           {filtered.sort((a, b) => new Date(b.date) - new Date(a.date)).map(expense => (
             <div key={expense.id} style={{ background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, padding: isMobile ? '12px 14px' : '14px 18px', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexDirection: isRTL ? 'row-reverse' : 'row', boxShadow: `0 1px 4px ${C.shadow}` }}>
-              <div style={{ width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: 10, flexShrink: 0, background: `${C.red}12`, border: `1px solid ${C.red}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 18 : 22 }}>
-                💸
-              </div>
+              <div style={{ width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: 10, flexShrink: 0, background: `${C.red}12`, border: `1px solid ${C.red}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 18 : 22 }}>💸</div>
               <div style={{ flex: 1, minWidth: 0, textAlign: isRTL ? 'right' : 'left' }}>
                 <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: C.charcoal }}>{expense.title}</div>
                 <div style={{ fontSize: isMobile ? 10 : 11, color: C.textMuted, marginTop: 2 }}>
                   {expense.category}
                   {expense.vendor && ` · ${expense.vendor}`}
-                  {' · '}{new Date(expense.date).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {expense.date && ` · ${new Date(expense.date).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                   {expense.recurring && <span style={{ marginLeft: 6, background: `${C.info}15`, border: `1px solid ${C.info}33`, color: C.info, fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 20 }}>🔄 {language === 'ar' ? 'شهري' : 'Monthly'}</span>}
                 </div>
               </div>

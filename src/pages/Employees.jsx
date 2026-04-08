@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { COLORS } from '../data/store';
-import { getEmployees, saveEmployees, generateId } from '../data/store';
 import { useLanguage } from '../data/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
+import api from '../services/api';
 
 const ROLES = ['Manager', 'Cashier', 'Driver', 'Warehouse', 'Sales', 'Accountant', 'Other'];
 
@@ -14,51 +13,90 @@ export default function Employees() {
   const C = useThemeColors();
   const { isMobile } = useWindowSize();
   const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ name: '', role: 'Cashier', phone: '', email: '', salary: '', startDate: new Date().toISOString().split('T')[0], nationalId: '', status: 'Active', notes: '' });
+  const [form, setForm] = useState({
+    name: '', role: 'Cashier', phone: '', email: '',
+    salary: '', start_date: new Date().toISOString().split('T')[0],
+    national_id: '', status: 'Active', notes: ''
+  });
 
-  useEffect(() => { setEmployees(getEmployees()); }, []);
+  useEffect(() => { fetchEmployees(); }, []);
 
-  function handleSave() {
+  async function fetchEmployees() {
+    setLoading(true);
+    try {
+      const data = await api.employees.getAll();
+      setEmployees(data);
+    } catch (err) {
+      console.error('Employees fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave() {
     if (!form.name.trim()) return alert(t('fullName') + ' ' + t('required'));
     if (!form.phone.trim()) return alert(t('phone') + ' ' + t('required'));
     if (!form.salary) return alert(t('salary') + ' ' + t('required'));
-    let updated;
-    if (editingId) {
-      updated = employees.map(e => e.id === editingId ? { ...e, ...form, salary: parseFloat(form.salary) } : e);
-    } else {
-      updated = [...employees, { id: generateId(), ...form, salary: parseFloat(form.salary), createdAt: new Date().toISOString() }];
+    setSaving(true);
+    try {
+      const payload = { ...form, salary: parseFloat(form.salary) };
+      if (editingId) {
+        const updated = await api.employees.update(editingId, payload);
+        setEmployees(es => es.map(e => e.id === editingId ? updated : e));
+      } else {
+        const created = await api.employees.create(payload);
+        setEmployees(es => [...es, created]);
+      }
+      resetForm();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
     }
-    saveEmployees(updated);
-    setEmployees(updated);
-    resetForm();
   }
 
   function handleEdit(emp) {
-    setForm({ name: emp.name, role: emp.role, phone: emp.phone, email: emp.email || '', salary: emp.salary, startDate: emp.startDate || '', nationalId: emp.nationalId || '', status: emp.status || 'Active', notes: emp.notes || '' });
+    setForm({
+      name: emp.name, role: emp.role, phone: emp.phone,
+      email: emp.email || '', salary: emp.salary,
+      start_date: emp.start_date || new Date().toISOString().split('T')[0],
+      national_id: emp.national_id || '',
+      status: emp.status || 'Active', notes: emp.notes || ''
+    });
     setEditingId(emp.id);
     setShowForm(true);
   }
 
-  function handleDelete(id) {
-    const updated = employees.filter(e => e.id !== id);
-    saveEmployees(updated);
-    setEmployees(updated);
-    setDeleteConfirm(null);
+  async function handleDelete(id) {
+    try {
+      await api.employees.delete(id);
+      setEmployees(es => es.filter(e => e.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function resetForm() {
-    setForm({ name: '', role: 'Cashier', phone: '', email: '', salary: '', startDate: new Date().toISOString().split('T')[0], nationalId: '', status: 'Active', notes: '' });
+    setForm({ name: '', role: 'Cashier', phone: '', email: '', salary: '', start_date: new Date().toISOString().split('T')[0], national_id: '', status: 'Active', notes: '' });
     setEditingId(null);
     setShowForm(false);
   }
 
-  const filtered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()) || e.role.toLowerCase().includes(search.toLowerCase()) || e.phone.includes(search));
+  const filtered = employees.filter(e =>
+    e.name.toLowerCase().includes(search.toLowerCase()) ||
+    e.role.toLowerCase().includes(search.toLowerCase()) ||
+    (e.phone || '').includes(search)
+  );
+
   const activeEmployees = employees.filter(e => e.status === 'Active');
-  const totalSalaries = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
+  const totalSalaries = activeEmployees.reduce((sum, e) => sum + (e.salary || 0), 0);
   const opt = language === 'ar' ? 'اختياري' : 'Optional';
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
 
@@ -131,7 +169,7 @@ export default function Employees() {
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('startDate')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
-                <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} />
+                <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} style={inputStyle} />
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('email')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
@@ -139,7 +177,7 @@ export default function Employees() {
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('nationalId')} <span style={{ fontSize: 10, fontWeight: 400 }}>({opt})</span></div>
-                <input value={form.nationalId} onChange={e => setForm({ ...form, nationalId: e.target.value })} style={inputStyle} />
+                <input value={form.national_id} onChange={e => setForm({ ...form, national_id: e.target.value })} style={inputStyle} />
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('status')}</div>
@@ -155,7 +193,9 @@ export default function Employees() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
               <button onClick={resetForm} style={{ padding: '9px 20px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 13, cursor: 'pointer' }}>{t('cancel')}</button>
-              <button onClick={handleSave} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{editingId ? t('save') : t('addEmployee')}</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '9px 24px', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
+                {saving ? '...' : editingId ? t('save') : t('addEmployee')}
+              </button>
             </div>
           </div>
         </div>
@@ -177,7 +217,9 @@ export default function Employees() {
       )}
 
       {/* List */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted }}>{t('noEmployees')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
@@ -197,7 +239,7 @@ export default function Employees() {
                   </div>
                   <div style={{ fontSize: isMobile ? 11 : 12, color: C.textMuted, marginTop: 2 }}>
                     {emp.role} · {emp.phone}
-                    {!isMobile && emp.startDate && ` · ${t('startDate')}: ${emp.startDate}`}
+                    {!isMobile && emp.start_date && ` · ${t('startDate')}: ${emp.start_date}`}
                   </div>
                 </div>
                 {!isMobile && (
