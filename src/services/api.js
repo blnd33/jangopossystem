@@ -89,12 +89,15 @@ const categories = {
 }
 
 const expenses = {
-  getAll: () => get('/expenses/'),
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/expenses/${qs ? '?' + qs : ''}`)
+  },
   create: (data) => post('/expenses/', data),
+  update: (id, data) => put(`/expenses/${id}`, data),
   delete: (id) => del(`/expenses/${id}`),
 }
 
-// ─── DELIVERIES ──────────────────────────────────────────────────────────────
 const deliveries = {
   getAll: (params = {}) => {
     const qs = new URLSearchParams(params).toString()
@@ -106,5 +109,69 @@ const deliveries = {
   delete: (id) => del(`/deliveries/${id}`),
 }
 
-const api = { pos, dashboard, products, customers, categories, expenses, deliveries }
+const employees = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/employees/${qs ? '?' + qs : ''}`)
+  },
+  create: (data) => post('/employees/', data),
+  update: (id, data) => put(`/employees/${id}`, data),
+  delete: (id) => del(`/employees/${id}`),
+}
+
+const gifts = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/gifts/${qs ? '?' + qs : ''}`)
+  },
+  create: (data) => post('/gifts/', data),
+  updateStatus: (id, status) => request('PATCH', `/gifts/${id}/status`, { status }),
+  delete: (id) => del(`/gifts/${id}`),
+  getEligible: () => get('/gifts/eligible'),
+}
+
+const giftMilestones = {
+  getAll: () => get('/gift-milestones/'),
+  create: (data) => post('/gift-milestones/', data),
+  toggle: (id) => request('PATCH', `/gift-milestones/${id}/toggle`),
+  delete: (id) => del(`/gift-milestones/${id}`),
+}
+
+const purchaseOrders = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/purchase-orders/${qs ? '?' + qs : ''}`)
+  },
+  create: (data) => post('/purchase-orders/', data),
+  update: (id, data) => put(`/purchase-orders/${id}`, data),
+  updateStatus: (id, status) => request('PATCH', `/purchase-orders/${id}/status`, { status }),
+  delete: (id) => del(`/purchase-orders/${id}`),
+}
+
+const suppliers = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/suppliers/${qs ? '?' + qs : ''}`)
+  },
+  create: (data) => post('/suppliers/', data),
+  update: (id, data) => put(`/suppliers/${id}`, data),
+  delete: (id) => del(`/suppliers/${id}`),
+}
+
+const returns = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/returns/${qs ? '?' + qs : ''}`)
+  },
+  create: (data) => post('/returns/', data),
+  update: (id, data) => put(`/returns/${id}`, data),
+  updateStatus: (id, status) => request('PATCH', `/returns/${id}/status`, { status }),
+  delete: (id) => del(`/returns/${id}`),
+}
+
+const api = {
+  pos, dashboard, products, customers, categories,
+  expenses, deliveries, employees, gifts, giftMilestones,
+  purchaseOrders, suppliers, returns
+}
 export default api

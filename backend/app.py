@@ -5,6 +5,10 @@ from routes.pos import pos_bp
 from routes.dashboard import dashboard_bp
 from routes.crud import products_bp, customers_bp, expenses_bp, categories_bp
 from routes.delivery import delivery_bp
+from routes.employees import employees_bp
+from routes.gifts import gifts_bp, milestones_bp
+from routes.purchase_orders import po_bp
+from routes.suppliers_returns import suppliers_bp, returns_bp
 import os
 
 
@@ -33,6 +37,12 @@ def create_app():
     app.register_blueprint(expenses_bp)
     app.register_blueprint(categories_bp)
     app.register_blueprint(delivery_bp)
+    app.register_blueprint(employees_bp)
+    app.register_blueprint(gifts_bp)
+    app.register_blueprint(milestones_bp)
+    app.register_blueprint(po_bp)
+    app.register_blueprint(suppliers_bp)
+    app.register_blueprint(returns_bp)
 
     @app.route('/api/health')
     def health():
