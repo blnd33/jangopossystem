@@ -144,12 +144,14 @@ export default function App() {
   }
 
   return (
-    <div style={{
-      display: 'flex', height: '100vh',
+    <div key={isRTL ? 'rtl' : 'ltr'} style={{
+      display: 'flex',
+      height: '100vh',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
       background: C.offWhite,
       flexDirection: isRTL ? 'row-reverse' : 'row',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      direction: isRTL ? 'rtl' : 'ltr',
     }}>
 
       {/* Mobile Sidebar Overlay */}

@@ -5,96 +5,205 @@ import { useThemeColors } from '../hooks/useThemeColors';
 import { useWindowSize } from '../hooks/useWindowSize';
 import api from '../services/api';
 
-function ThermalReceipt({ receipt, fmt, t, language, isRTL, onNewSale, C }) {
+function A4Invoice({ receipt, fmt, t, language, isRTL, onNewSale, C }) {
   const settings = JSON.parse(localStorage.getItem('jango_settings') || '{}');
   const companyName = settings.companyName || 'Jango';
   const companyTagline = settings.companyTagline || 'Furniture';
   const companyAddress = settings.address || 'Sulaymaniyah, Iraq';
   const companyPhone = settings.phone || '';
-  const receiptHeader = settings.receiptHeader || 'Thank you for shopping at Jango!';
-  const receiptFooter = settings.receiptFooter || 'Sulaymaniyah, Iraq';
-  const receiptMessage = settings.receiptMessage || 'Please keep your receipt for returns.';
+  const companyEmail = settings.email || '';
 
-  const receiptStyle = `@media print { @page { size: 80mm auto; margin: 0; } body * { visibility: hidden !important; } #thermal-receipt, #thermal-receipt * { visibility: visible !important; } #thermal-receipt { position: fixed !important; left: 0 !important; top: 0 !important; width: 80mm !important; padding: 0 !important; margin: 0 !important; } .no-print { display: none !important; } }`;
+  const printStyle = `
+    @media print {
+      @page { size: A4; margin: 15mm; }
+      body * { visibility: hidden !important; }
+      #a4-invoice, #a4-invoice * { visibility: visible !important; }
+      #a4-invoice { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; }
+      .no-print { display: none !important; }
+    }
+  `;
+
+  const invoiceDate = new Date(receipt.created_at);
+  const items = receipt.items || [];
+  const isAr = language === 'ar';
 
   return (
-    <div style={{ padding: 20, maxWidth: 520, margin: '0 auto', direction: isRTL ? 'rtl' : 'ltr', fontFamily: 'Arial, sans-serif' }}>
-      <style>{receiptStyle}</style>
-      <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
-        <button onClick={() => window.print()} style={{ flex: 1, padding: '12px 0', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.charcoal}, #1e293b)`, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>🖨️ {t('printReceipt')}</button>
-        <button onClick={onNewSale} style={{ flex: 1, padding: '12px 0', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>+ {t('newSale')}</button>
+    <div style={{ minHeight: '100vh', background: '#f1f5f9', padding: '20px', fontFamily: isAr ? 'Arial, sans-serif' : 'Georgia, serif' }}>
+      <style>{printStyle}</style>
+
+      {/* Action Buttons */}
+      <div className="no-print" style={{ maxWidth: 794, margin: '0 auto 16px', display: 'flex', gap: 10 }}>
+        <button onClick={() => window.print()} style={{ flex: 1, padding: '12px 0', borderRadius: 8, border: 'none', background: '#1e293b', color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>
+          🖨️ {isAr ? 'طباعة الفاتورة' : 'Print Invoice'}
+        </button>
+        <button onClick={onNewSale} style={{ flex: 1, padding: '12px 0', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>
+          + {isAr ? 'بيعة جديدة' : 'New Sale'}
+        </button>
       </div>
-      <div id="thermal-receipt" style={{ background: '#fff', width: '100%', maxWidth: 320, margin: '0 auto', padding: '12px 14px', fontFamily: "'Courier New', Courier, monospace", fontSize: 12, color: '#000', border: '1px dashed #ccc', boxSizing: 'border-box' }}>
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase' }}>{language === 'ar' ? 'جانغو' : companyName}</div>
-          <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', marginTop: 2 }}>{companyTagline}</div>
-          <div style={{ fontSize: 10, marginTop: 3 }}>{companyAddress}</div>
-          {companyPhone && <div style={{ fontSize: 10 }}>{companyPhone}</div>}
-          <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
-          <div style={{ fontSize: 10 }}>{receiptHeader}</div>
-        </div>
-        <div style={{ marginBottom: 6 }}>
-          {[
-            { label: language === 'ar' ? 'رقم الفاتورة' : 'Receipt #', value: receipt.invoice_number },
-            { label: t('date'), value: new Date(receipt.created_at).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) },
-            { label: language === 'ar' ? 'الوقت' : 'Time', value: new Date(receipt.created_at).toLocaleTimeString(language === 'ar' ? 'ar-IQ' : 'en-GB', { hour: '2-digit', minute: '2-digit' }) },
-            { label: t('customer'), value: receipt.customer || t('walkIn') },
-            { label: t('paymentMethod'), value: receipt.payment_method },
-          ].map(row => (
-            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 10 }}>{row.label}:</span>
-              <span style={{ fontSize: 10, fontWeight: 700 }}>{row.value}</span>
+
+      {/* A4 Invoice */}
+      <div id="a4-invoice" style={{
+        maxWidth: 794, margin: '0 auto', background: '#fff',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+        borderRadius: 4, overflow: 'hidden',
+        direction: isAr ? 'rtl' : 'ltr',
+        fontFamily: isAr ? 'Arial, sans-serif' : 'Georgia, serif',
+      }}>
+
+        {/* Header */}
+        <div style={{ background: '#1e293b', padding: '28px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: isAr ? 'row-reverse' : 'row' }}>
+          <div style={{ textAlign: isAr ? 'right' : 'left' }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase' }}>
+              {isAr ? 'جانغو' : companyName}
             </div>
-          ))}
-        </div>
-        <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '6px 0', marginBottom: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, flex: 2 }}>{language === 'ar' ? 'المنتج' : 'ITEM'}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, textAlign: 'center', flex: 1 }}>{language === 'ar' ? 'كمية' : 'QTY'}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, textAlign: 'center', flex: 1 }}>{language === 'ar' ? 'سعر' : 'PRICE'}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, textAlign: 'right', flex: 1 }}>{language === 'ar' ? 'المجموع' : 'TOTAL'}</span>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4, letterSpacing: 1 }}>{companyTagline}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>{companyAddress}</div>
+            {companyPhone && <div style={{ fontSize: 12, color: '#64748b' }}>📞 {companyPhone}</div>}
+            {companyEmail && <div style={{ fontSize: 12, color: '#64748b' }}>✉️ {companyEmail}</div>}
           </div>
-          {(receipt.items || []).map((item, i) => (
-            <div key={i} style={{ marginBottom: 4 }}>
-              <div style={{ fontSize: 11, fontWeight: 600 }}>{item.product_name}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 10, flex: 2 }}></span>
-                <span style={{ fontSize: 10, textAlign: 'center', flex: 1 }}>{item.quantity}</span>
-                <span style={{ fontSize: 10, textAlign: 'center', flex: 1 }}>{fmt(item.unit_price)}</span>
-                <span style={{ fontSize: 10, textAlign: 'right', flex: 1, fontWeight: 600 }}>{fmt(item.total)}</span>
+          <div style={{ textAlign: isAr ? 'left' : 'right' }}>
+            <div style={{ fontSize: 13, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              {isAr ? 'فاتورة مبيعات' : 'Sales Invoice'}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: C.red || '#ef4444' }}>
+              #{receipt.invoice_number}
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>
+              {isAr ? 'التاريخ:' : 'Date:'} {invoiceDate.toLocaleDateString(isAr ? 'ar-IQ' : 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              {isAr ? 'الوقت:' : 'Time:'} {invoiceDate.toLocaleTimeString(isAr ? 'ar-IQ' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+        </div>
+
+        {/* Red accent line */}
+        <div style={{ height: 4, background: `linear-gradient(90deg, ${C.red || '#ef4444'}, #f97316)` }} />
+
+        {/* Customer & Payment Info */}
+        <div style={{ padding: '24px 36px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ textAlign: isAr ? 'right' : 'left' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              {isAr ? 'بيانات العميل' : 'Bill To'}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
+              {receipt.customer || (isAr ? 'زبون عادي' : 'Walk-in Customer')}
+            </div>
+          </div>
+          <div style={{ textAlign: isAr ? 'left' : 'right' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              {isAr ? 'تفاصيل الدفع' : 'Payment Details'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: isAr ? 'flex-start' : 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#64748b' }}>{isAr ? 'طريقة الدفع:' : 'Method:'}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', textTransform: 'capitalize' }}>{receipt.payment_method}</span>
               </div>
-              {item.discount > 0 && <div style={{ fontSize: 9, color: '#666', textAlign: 'right' }}>{language === 'ar' ? 'خصم: ' : 'Disc: '}-{fmt(item.discount)}</div>}
-            </div>
-          ))}
-        </div>
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ fontSize: 10 }}>{t('subtotal')}:</span><span style={{ fontSize: 10 }}>{fmt(receipt.subtotal)}</span></div>
-          {receipt.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ fontSize: 10 }}>{t('discount')}:</span><span style={{ fontSize: 10 }}>-{fmt(receipt.discount)}</span></div>}
-          <div style={{ borderTop: '1px solid #000', marginTop: 4, paddingTop: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase' }}>{t('total')}:</span>
-              <span style={{ fontSize: 13, fontWeight: 900 }}>{fmt(receipt.total)}</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#64748b' }}>{isAr ? 'الحالة:' : 'Status:'}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 10px', borderRadius: 20 }}>
+                  {isAr ? 'مدفوعة' : 'PAID'}
+                </span>
+              </div>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span style={{ fontSize: 10 }}>{t('amountPaid')}:</span><span style={{ fontSize: 10 }}>{fmt(receipt.amount_paid)}</span></div>
-          {receipt.change_given > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 10 }}>{t('change')}:</span><span style={{ fontSize: 10, fontWeight: 700 }}>{fmt(receipt.change_given)}</span></div>}
         </div>
-        {receipt.note && <div style={{ fontSize: 10, fontStyle: 'italic', marginBottom: 6, textAlign: 'center' }}>{receipt.note}</div>}
-        <div style={{ borderTop: '1px dashed #000', paddingTop: 6, textAlign: 'center', marginBottom: 4 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 2 }}>{receiptMessage}</div>
-          <div style={{ fontSize: 10 }}>{receiptFooter}</div>
-          <div style={{ fontSize: 10, marginTop: 4 }}>{'*'.repeat(10)} {language === 'ar' ? 'شكراً لزيارتكم' : 'THANK YOU'} {'*'.repeat(10)}</div>
+
+        {/* Items Table */}
+        <div style={{ padding: '0 36px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 24 }}>
+            <thead>
+              <tr style={{ background: '#1e293b' }}>
+                <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textAlign: isAr ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  {isAr ? 'المنتج' : 'Item'}
+                </th>
+                <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  {isAr ? 'الكمية' : 'Qty'}
+                </th>
+                <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  {isAr ? 'سعر الوحدة' : 'Unit Price'}
+                </th>
+                <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textAlign: isAr ? 'left' : 'right', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  {isAr ? 'المجموع' : 'Total'}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ padding: '14px 16px', textAlign: isAr ? 'right' : 'left' }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{item.product_name}</div>
+                    {item.discount > 0 && (
+                      <div style={{ fontSize: 11, color: '#ef4444', marginTop: 2 }}>
+                        {isAr ? 'خصم:' : 'Disc:'} -{fmt(item.discount)}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '14px 16px', textAlign: 'center', fontSize: 14, color: '#475569' }}>
+                    {item.quantity}
+                  </td>
+                  <td style={{ padding: '14px 16px', textAlign: 'center', fontSize: 14, color: '#475569' }}>
+                    {fmt(item.unit_price)}
+                  </td>
+                  <td style={{ padding: '14px 16px', textAlign: isAr ? 'left' : 'right', fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+                    {fmt(item.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div style={{ textAlign: 'center', fontSize: 10, marginBottom: 6 }}>
-          {language === 'ar' ? 'عدد المنتجات' : 'Items'}: {(receipt.items || []).reduce((sum, i) => sum + i.quantity, 0)}
+
+        {/* Totals */}
+        <div style={{ padding: '20px 36px 28px', display: 'flex', justifyContent: isAr ? 'flex-start' : 'flex-end' }}>
+          <div style={{ width: 280 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: 13, color: '#64748b' }}>{isAr ? 'المجموع الفرعي' : 'Subtotal'}</span>
+              <span style={{ fontSize: 13, color: '#1e293b' }}>{fmt(receipt.subtotal)}</span>
+            </div>
+            {receipt.discount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: 13, color: '#64748b' }}>{isAr ? 'الخصم' : 'Discount'}</span>
+                <span style={{ fontSize: 13, color: '#ef4444' }}>-{fmt(receipt.discount)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#1e293b', borderRadius: 8, marginTop: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{isAr ? 'الإجمالي' : 'TOTAL'}</span>
+              <span style={{ fontSize: 18, fontWeight: 900, color: C.red || '#ef4444' }}>{fmt(receipt.total)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', marginTop: 8 }}>
+              <span style={{ fontSize: 12, color: '#64748b' }}>{isAr ? 'المبلغ المدفوع' : 'Amount Paid'}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#15803d' }}>{fmt(receipt.amount_paid)}</span>
+            </div>
+            {receipt.change_given > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+                <span style={{ fontSize: 12, color: '#64748b' }}>{isAr ? 'الباقي' : 'Change'}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{fmt(receipt.change_given)}</span>
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ borderTop: '1px dashed #ccc', paddingTop: 5, textAlign: 'center' }}>
-          <div style={{ fontSize: 8, color: '#999', letterSpacing: 1 }}>Powered by</div>
-          <div style={{ fontSize: 9, color: '#888', fontWeight: 700 }}>CodaTechAgency</div>
+
+        {/* Note */}
+        {receipt.note && (
+          <div style={{ margin: '0 36px', padding: '12px 16px', background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, marginBottom: 20 }}>
+            <span style={{ fontSize: 12, color: '#92400e' }}>📝 {receipt.note}</span>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ margin: '0 36px 36px', padding: '20px 24px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
+            {isAr ? 'شكراً لتسوقكم معنا!' : 'Thank you for your business!'}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>
+            {isAr ? 'يرجى الاحتفاظ بهذه الفاتورة للمراجعة' : 'Please keep this invoice for your records'}
+          </div>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #e2e8f0', fontSize: 10, color: '#94a3b8' }}>
+            {companyName} · {companyAddress} {companyPhone && `· ${companyPhone}`}
+          </div>
         </div>
-      </div>
-      <div className="no-print" style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: C.textMuted }}>
-        {language === 'ar' ? '⬆️ معاينة الفاتورة' : '⬆️ Receipt preview — Click print for thermal printer'}
+
       </div>
     </div>
   );
@@ -240,7 +349,6 @@ export default function POS() {
       const result = await api.pos.checkout(payload);
       const sale = result.sale;
 
-      // Refresh products stock
       setProducts(prev => prev.map(p => {
         const cartItem = cart.find(i => i.id === p.id);
         return cartItem ? { ...p, stock: p.stock - cartItem.qty } : p;
@@ -280,7 +388,7 @@ export default function POS() {
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: C.textMuted }}>Loading...</div>;
 
   if (receipt) {
-    return <ThermalReceipt receipt={receipt} fmt={fmt} t={t} language={language} isRTL={isRTL} onNewSale={() => setReceipt(null)} C={C} />;
+    return <A4Invoice receipt={receipt} fmt={fmt} t={t} language={language} isRTL={isRTL} onNewSale={() => setReceipt(null)} C={C} />;
   }
 
   const CartPanel = (
@@ -292,7 +400,6 @@ export default function POS() {
         </div>
       )}
 
-      {/* Customer */}
       <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, position: 'relative' }}>
         {!isMobile && <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>{t('customer')}</div>}
         <input
@@ -319,7 +426,6 @@ export default function POS() {
         )}
       </div>
 
-      {/* Cart Items */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px' }}>
         {cart.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '30px 0', color: C.textMuted, fontSize: 13 }}>
@@ -355,7 +461,6 @@ export default function POS() {
         ))}
       </div>
 
-      {/* Checkout */}
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '12px 16px', background: C.white }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
           <input type="number" placeholder={t('discount')} value={discount} onChange={e => setDiscount(e.target.value)} style={{ flex: 1, padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, outline: 'none', background: C.white, color: C.charcoal, textAlign: isRTL ? 'right' : 'left' }} />
@@ -416,19 +521,10 @@ export default function POS() {
 
   const ProductsPanel = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: !isRTL && !isMobile ? `1px solid ${C.border}` : 'none', borderLeft: isRTL && !isMobile ? `1px solid ${C.border}` : 'none' }}>
-
-      {/* Barcode Scanner */}
       <div style={{ padding: '10px 14px', background: C.offWhite, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8 }}>🔲 {t('quickScan')}</div>
         <div style={{ position: 'relative' }}>
-          <input
-            ref={barcodeRef}
-            value={barcodeInput}
-            onChange={handleBarcodeInput}
-            onKeyDown={handleBarcodeKeyDown}
-            placeholder={t('scanBarcode')}
-            style={{ width: '100%', padding: '9px 14px', paddingLeft: isRTL ? 14 : 38, paddingRight: isRTL ? 38 : 14, border: `2px solid ${barcodeError ? C.red : barcodeResult ? C.success : C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.white, color: C.charcoal, boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left' }}
-          />
+          <input ref={barcodeRef} value={barcodeInput} onChange={handleBarcodeInput} onKeyDown={handleBarcodeKeyDown} placeholder={t('scanBarcode')} style={{ width: '100%', padding: '9px 14px', paddingLeft: isRTL ? 14 : 38, paddingRight: isRTL ? 38 : 14, border: `2px solid ${barcodeError ? C.red : barcodeResult ? C.success : C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.white, color: C.charcoal, boxSizing: 'border-box', textAlign: isRTL ? 'right' : 'left' }} />
           <span style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: isRTL ? 'auto' : 11, right: isRTL ? 11 : 'auto', fontSize: 16 }}>
             {barcodeResult ? '✅' : barcodeError ? '❌' : '🔲'}
           </span>
@@ -451,7 +547,6 @@ export default function POS() {
         {!barcodeResult && !barcodeError && <div style={{ marginTop: 3, fontSize: 10, color: C.textMuted }}>{language === 'ar' ? '💡 اضغط Enter لإضافة المنتج' : '💡 Press Enter to auto-add to cart'}</div>}
       </div>
 
-      {/* Search & Filter */}
       <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
         <input placeholder={`${t('search')}...`} value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, outline: 'none', background: C.white, color: C.charcoal, textAlign: isRTL ? 'right' : 'left' }} />
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, outline: 'none', background: C.white, cursor: 'pointer', color: C.charcoal }}>
@@ -460,7 +555,6 @@ export default function POS() {
         </select>
       </div>
 
-      {/* Products Grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
         {filteredProducts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: C.textMuted }}>{t('noProducts')}</div>
