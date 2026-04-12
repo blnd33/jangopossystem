@@ -5,7 +5,7 @@ import { useLanguage } from '../data/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useThemeColors } from '../hooks/useThemeColors';
 
-export default function Login() {
+export default function Login({ onLogin }) {
   const { login } = useAuth();
   const { t, isRTL, language, changeLanguage } = useLanguage();
   const { toggleTheme, isDark } = useTheme();
@@ -24,7 +24,12 @@ export default function Login() {
     setError('');
     setTimeout(() => {
       const success = login(username.trim(), password);
-      if (!success) { setError(t('loginError')); setLoading(false); }
+      if (!success) {
+        setError(t('loginError'));
+        setLoading(false);
+      } else {
+        if (onLogin) onLogin();
+      }
     }, 600);
   }
 
@@ -59,7 +64,6 @@ export default function Login() {
         right: isRTL ? 'auto' : 20, left: isRTL ? 20 : 'auto',
         display: 'flex', gap: 8, alignItems: 'center'
       }}>
-        {/* Dark Mode Toggle */}
         <button onClick={toggleTheme} style={{
           background: isDark ? '#FFD70022' : 'rgba(255,255,255,0.1)',
           border: `1px solid ${isDark ? '#FFD70044' : 'rgba(255,255,255,0.2)'}`,
@@ -70,7 +74,6 @@ export default function Login() {
           {isDark ? '☀️' : '🌙'}
         </button>
 
-        {/* Language Switcher */}
         <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, overflow: 'hidden' }}>
           {[{ code: 'en', label: '🇬🇧 EN' }, { code: 'ar', label: '🇮🇶 AR' }].map(lang => (
             <button key={lang.code} onClick={() => changeLanguage(lang.code)} style={{
@@ -101,7 +104,6 @@ export default function Login() {
             : `linear-gradient(135deg, ${COLORS.charcoal}, ${COLORS.charcoalLight})`,
           padding: '36px 40px 28px', textAlign: 'center'
         }}>
-          {/* Logo */}
           <div style={{
             width: 64, height: 64, borderRadius: 14, margin: '0 auto 16px',
             background: `linear-gradient(135deg, ${COLORS.steel}, ${COLORS.steelDark})`,
@@ -211,7 +213,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Default credentials hint */}
           <div style={{ marginTop: 20, padding: '12px 16px', background: `${C.info}10`, border: `1px solid ${C.info}30`, borderRadius: 8, fontSize: 12, color: C.textMuted, textAlign: 'center' }}>
             {language === 'ar' ? '🔑 الدخول الافتراضي: admin / admin123' : '🔑 Default: admin / admin123'}
           </div>

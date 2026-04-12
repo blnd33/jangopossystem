@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { COLORS, PAGE_TITLES } from './data/store';
 import { useLanguage } from './data/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
@@ -11,6 +11,7 @@ import StatCards from './components/StatCards';
 import MobileNav from './components/MobileNav';
 import PlaceholderPage from './pages/PlaceholderPage';
 import Login from './pages/Login';
+import HomeGrid from './components/HomeGrid';
 import Suppliers from './pages/Suppliers';
 import Categories from './pages/Categories';
 import Inventory from './pages/Inventory';
@@ -34,6 +35,7 @@ export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showHomeGrid, setShowHomeGrid] = useState(true);
   const { isRTL } = useLanguage();
   const { currentUser, loading, hasPermission, isSuperAdmin } = useAuth();
   const { isDark } = useTheme();
@@ -63,6 +65,13 @@ export default function App() {
   }
 
   if (!currentUser) return <Login />;
+
+  if (showHomeGrid) {
+    return <HomeGrid onNavigate={(page) => {
+      setActivePage(page);
+      setShowHomeGrid(false);
+    }} />;
+  }
 
   function AccessDenied() {
     return (
@@ -154,7 +163,6 @@ export default function App() {
       direction: isRTL ? 'rtl' : 'ltr',
     }}>
 
-      {/* Mobile Sidebar Overlay */}
       {isMobile && mobileSidebarOpen && (
         <div
           onClick={() => setMobileSidebarOpen(false)}
@@ -165,7 +173,6 @@ export default function App() {
         />
       )}
 
-      {/* Mobile Sidebar Drawer */}
       {isMobile && (
         <div style={{
           position: 'fixed', top: 0, bottom: 0,
@@ -185,7 +192,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Desktop/Tablet Sidebar */}
       {showSidebar && (
         <Sidebar
           activePage={activePage}
@@ -195,7 +201,6 @@ export default function App() {
         />
       )}
 
-      {/* Main Content */}
       <div style={{
         flex: 1, display: 'flex',
         flexDirection: 'column',
@@ -258,7 +263,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Mobile Bottom Nav */}
       {isMobile && (
         <MobileNav
           activePage={activePage}
