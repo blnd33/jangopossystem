@@ -9,6 +9,14 @@ import {
   PLIcon, FlowIcon, TeamIcon, ReportIcon, SettingsIcon, MenuIcon, ChevronRight
 } from './Icons';
 
+const DebtIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="5" width="20" height="14" rx="2"/>
+    <line x1="2" y1="10" x2="22" y2="10"/>
+    <line x1="6" y1="15" x2="10" y2="15"/>
+  </svg>
+);
+
 const ICON_MAP = {
   dashboard: DashIcon, pos: PosIcon, inventory: BoxIcon,
   suppliers: TruckIcon, categories: TagIcon,
@@ -19,6 +27,7 @@ const ICON_MAP = {
   reports: ReportIcon, settings: SettingsIcon,
   'user-management': UsersIcon,
   gifts: () => <span style={{ fontSize: 15 }}>🎁</span>,
+  debts: DebtIcon,
 };
 
 function JangoLogo({ collapsed, t, isRTL, language }) {
@@ -98,6 +107,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
         { id: 'expenses', label: t('expenses') },
         { id: 'pl', label: t('pl') },
         { id: 'cashflow', label: t('cashflow') },
+        { id: 'debts', label: language === 'ar' ? 'الديون' : 'Debts' },
       ],
     },
     {
@@ -120,6 +130,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
     ...section,
     items: section.items.filter(item => {
       if (item.id === 'user-management') return isSuperAdmin();
+      if (item.id === 'debts') return true;
       return hasPermission(item.id);
     })
   })).filter(section => section.items.length > 0);

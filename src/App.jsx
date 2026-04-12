@@ -30,6 +30,7 @@ import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import Reports from './pages/Reports';
 import Gifts from './pages/Gifts';
+import Debts from './pages/Debts';
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -67,10 +68,14 @@ export default function App() {
   if (!currentUser) return <Login />;
 
   if (showHomeGrid) {
-    return <HomeGrid onNavigate={(page) => {
-      setActivePage(page);
-      setShowHomeGrid(false);
-    }} />;
+    return (
+      <div style={{ height: '100vh', overflowY: 'auto' }}>
+        <HomeGrid onNavigate={(page) => {
+          setActivePage(page);
+          setShowHomeGrid(false);
+        }} />
+      </div>
+    );
   }
 
   function AccessDenied() {
@@ -130,6 +135,7 @@ export default function App() {
       case 'settings': return <Settings />;
       case 'reports': return <Reports />;
       case 'gifts': return <Gifts />;
+      case 'debts': return <Debts />;
       default: return <PlaceholderPage pageId={activePage} />;
     }
   }
@@ -139,7 +145,7 @@ export default function App() {
     'customers', 'pos', 'expenses', 'sales-report',
     'pl', 'cashflow', 'employees', 'delivery',
     'purchase-orders', 'returns', 'settings',
-    'user-management', 'reports', 'gifts'
+    'user-management', 'reports', 'gifts', 'debts'
   ];
 
   const isFullPage = fullPageModules.includes(activePage);

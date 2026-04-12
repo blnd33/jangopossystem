@@ -169,9 +169,22 @@ const returns = {
   delete: (id) => del(`/returns/${id}`),
 }
 
+const debts = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/debts${qs ? '?' + qs : ''}`)
+  },
+  getOne: (id) => get(`/debts/${id}`),
+  getSummary: () => get('/debts/summary'),
+  create: (data) => post('/debts', data),
+  update: (id, data) => put(`/debts/${id}`, data),
+  delete: (id) => del(`/debts/${id}`),
+  addPayment: (id, data) => post(`/debts/${id}/payments`, data),
+}
+
 const api = {
   pos, dashboard, products, customers, categories,
   expenses, deliveries, employees, gifts, giftMilestones,
-  purchaseOrders, suppliers, returns
+  purchaseOrders, suppliers, returns, debts
 }
 export default api

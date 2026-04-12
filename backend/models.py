@@ -304,3 +304,60 @@ class Return(db.Model):
             'restock': self.restock, 'status': self.status, 'notes': self.notes,
             'date': self.date, 'created_at': self.created_at.isoformat(),
         }
+
+
+class Debt(db.Model):
+    __tablename__ = 'debts'
+    id = db.Column(db.Integer, primary_key=True)
+    debt_type = db.Column(db.String(20), nullable=False)  # 'purchase' or 'sale'
+    reference_id = db.Column(db.Integer, nullable=True)   # purchase_order.id or sale.id
+    party_name = db.Column(db.String(200), nullable=False) # supplier or customer name
+    party_id = db.Column(db.Integer, nullable=True)
+    total_amount = db.Column(db.Float, nullable=False)
+    paid_amount = db.Column(db.Float, default=0.0)
+    due_date = db.Column(db.String(20), nullable=True)
+    status = db.Column(db.String(20), default='unpaid')   # 'unpaid', 'partial', 'paid'
+    notes = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    payments = db.relationship('DebtPayment', backref='debt', lazy=True, cascade='all, delete-orphan')
+
+    @property
+    def remaining_amount(self):
+        return round(self.total_amount - self.paid_amount, 2)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'debt_type': self.debt_type,
+            'reference_id': self.reference_id,
+            'party_name': self.party_name,
+            'party_id': self.party_id,
+            'total_amount': self.total_amount,
+            'paid_amount': self.paid_amount,
+            'remaining_amount': self.remaining_amount,
+            'due_date': self.due_date,
+            'status': self.status,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat(),
+            'payments': [p.to_dict() for p in self.payments],
+        }
+
+
+class DebtPayment(db.Model):
+    __tablename__ = 'debt_payments'
+    id = db.Column(db.Integer, primary_key=True)
+    debt_id = db.Column(db.Integer, db.ForeignKey('debts.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    payment_date = db.Column(db.String(20), nullable=True)
+    note = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'debt_id': self.debt_id,
+            'amount': self.amount,
+            'payment_date': self.payment_date,
+            'note': self.note,
+            'created_at': self.created_at.isoformat(),
+        }
