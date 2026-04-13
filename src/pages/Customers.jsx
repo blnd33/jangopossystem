@@ -25,6 +25,13 @@ export default function Customers() {
     tag: 'Regular', creditLimit: '', notes: ''
   });
 
+  // Account modal
+  const [accountModal, setAccountModal] = useState(null);
+  const [accountData, setAccountData] = useState(null);
+  const [accountLoading, setAccountLoading] = useState(false);
+
+  const L = (ar, en) => language === 'ar' ? ar : en;
+
   useEffect(() => { fetchCustomers(); }, []);
 
   async function fetchCustomers() {
@@ -39,17 +46,25 @@ export default function Customers() {
     }
   }
 
+  async function openAccount(customer) {
+    setAccountModal(customer);
+    setAccountLoading(true);
+    setAccountData(null);
+    try {
+      const data = await api.customers.getHistory(customer.id);
+      setAccountData(data);
+    } catch (e) {
+      console.error(e);
+    }
+    setAccountLoading(false);
+  }
+
   async function handleSave() {
     if (!form.name.trim()) return alert(t('fullName') + ' ' + t('required'));
     if (!form.phone.trim()) return alert(t('phone') + ' ' + t('required'));
     setSaving(true);
     try {
-      const payload = {
-        name: form.name,
-        phone: form.phone,
-        email: form.email,
-        address: form.address,
-      };
+      const payload = { name: form.name, phone: form.phone, email: form.email, address: form.address };
       if (editingId) {
         const updated = await api.customers.update(editingId, payload);
         setCustomers(cs => cs.map(c => c.id === editingId ? { ...c, ...updated } : c));
@@ -67,13 +82,9 @@ export default function Customers() {
 
   function handleEdit(customer) {
     setForm({
-      name: customer.name,
-      phone: customer.phone || '',
-      email: customer.email || '',
-      address: customer.address || '',
-      tag: customer.tag || 'Regular',
-      creditLimit: customer.creditLimit || '',
-      notes: customer.notes || ''
+      name: customer.name, phone: customer.phone || '',
+      email: customer.email || '', address: customer.address || '',
+      tag: customer.tag || 'Regular', creditLimit: customer.creditLimit || '', notes: customer.notes || ''
     });
     setEditingId(customer.id);
     setShowForm(true);
@@ -101,7 +112,6 @@ export default function Customers() {
     return matchSearch && matchTag;
   });
 
-  const totalDebt = 0; // debt tracking handled via sales in backend
   const vipCount = customers.filter(c => c.tag === 'VIP').length;
   const opt = language === 'ar' ? 'اختياري' : 'Optional';
   const fontFamily = language === 'ar' ? 'Arial, sans-serif' : 'inherit';
@@ -136,8 +146,8 @@ export default function Customers() {
           {[
             { label: t('totalCustomers'), value: customers.length, color: C.info },
             { label: 'VIP', value: vipCount, color: '#B8860B' },
-            { label: language === 'ar' ? 'إجمالي المشتريات' : 'Total Spent', value: fmt(customers.reduce((s, c) => s + (c.total_spent || 0), 0)), color: C.success },
-            { label: language === 'ar' ? 'جديد هذا الشهر' : 'New This Month', value: customers.filter(c => c.created_at?.startsWith(new Date().toISOString().slice(0, 7))).length, color: C.warning },
+            { label: L('إجمالي المشتريات', 'Total Spent'), value: fmt(customers.reduce((s, c) => s + (c.total_spent || 0), 0)), color: C.success },
+            { label: L('جديد هذا الشهر', 'New This Month'), value: customers.filter(c => c.created_at?.startsWith(new Date().toISOString().slice(0, 7))).length, color: C.warning },
           ].map(card => (
             <div key={card.label} style={{ background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, padding: '14px 16px', borderTop: `3px solid ${card.color}` }}>
               <div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{card.label}</div>
@@ -156,7 +166,7 @@ export default function Customers() {
         </select>
       </div>
 
-      {/* Modal */}
+      {/* Customer Form Modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000, padding: isMobile ? 0 : 20 }}>
           <div style={{ background: C.white, borderRadius: isMobile ? '16px 16px 0 0' : 14, padding: isMobile ? '20px 16px' : 28, width: isMobile ? '100%' : 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
@@ -208,6 +218,108 @@ export default function Customers() {
         </div>
       )}
 
+      {/* Account Modal */}
+      {accountModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: C.white, borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '88vh', overflowY: 'auto', padding: 28, direction: isRTL ? 'rtl' : 'ltr' }}>
+
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.charcoal }}>{accountModal.name}</div>
+                <div style={{ fontSize: 12, color: C.textMuted }}>{accountModal.phone}</div>
+              </div>
+              <button onClick={() => { setAccountModal(null); setAccountData(null); }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.textMuted }}>✕</button>
+            </div>
+
+            {accountLoading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>{L('جاري التحميل...', 'Loading...')}</div>
+            ) : accountData ? (
+              <>
+                {/* Stats Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
+                  {[
+                    { label: L('إجمالي المبيعات', 'Total Revenue'), value: fmt(accountData.summary.total_revenue), color: C.info, bg: `${C.info}11` },
+                    { label: L('عدد الفواتير', 'Invoices'), value: accountData.summary.total_invoices, color: C.success, bg: `${C.success}11` },
+                    { label: L('صافي الربح', 'Net Profit'), value: fmt(accountData.summary.total_profit), color: accountData.summary.total_profit >= 0 ? C.success : C.red, bg: accountData.summary.total_profit >= 0 ? `${C.success}11` : `${C.red}11` },
+                    { label: L('هامش الربح', 'Profit Margin'), value: `${accountData.summary.profit_margin}%`, color: C.warning, bg: `${C.warning}11` },
+                    { label: L('إجمالي الديون', 'Total Debt'), value: fmt(accountData.summary.total_debt), color: C.red, bg: `${C.red}11` },
+                    { label: L('ديون نشطة', 'Active Debts'), value: accountData.summary.active_debts, color: accountData.summary.active_debts > 0 ? C.red : C.success, bg: accountData.summary.active_debts > 0 ? `${C.red}11` : `${C.success}11` },
+                  ].map((item, i) => (
+                    <div key={i} style={{ background: item.bg, borderRadius: 10, padding: '12px 16px', border: `1px solid ${item.color}22` }}>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>{item.label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: item.color }}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Profit Bar */}
+                {accountData.summary.total_revenue > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>{L('توزيع الإيرادات', 'Revenue Breakdown')}</div>
+                    <div style={{ height: 10, borderRadius: 5, background: C.border, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${Math.min(Math.max(accountData.summary.profit_margin, 0), 100)}%`, background: `linear-gradient(90deg, ${C.success}, ${C.success}88)`, borderRadius: 5 }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                      <span>{L('ربح', 'Profit')} {accountData.summary.profit_margin}%</span>
+                      <span>{L('تكلفة', 'Cost')} {(100 - accountData.summary.profit_margin).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.charcoal, marginBottom: 14 }}>
+                  {L('سجل النشاط الكامل', 'Full Activity History')} ({accountData.timeline.length})
+                </div>
+
+                {accountData.timeline.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: C.textMuted, padding: '20px 0', fontSize: 13 }}>{L('لا يوجد نشاط', 'No activity yet')}</div>
+                ) : (
+                  <div style={{ position: 'relative' }}>
+                    {/* vertical line */}
+                    <div style={{ position: 'absolute', top: 0, bottom: 0, left: isRTL ? 'auto' : 20, right: isRTL ? 20 : 'auto', width: 2, background: C.border }} />
+
+                    {accountData.timeline.map((item, i) => {
+                      const typeConfig = {
+                        sale:         { icon: '🧾', color: C.info,    label: L('فاتورة بيع', 'Sale Invoice') },
+                        debt_created: { icon: '💳', color: C.red,     label: L('دين جديد', 'New Debt') },
+                        debt_payment: { icon: '💵', color: C.success, label: L('دفعة دين', 'Debt Payment') },
+                      }[item.type] || { icon: '📋', color: C.textMuted, label: item.type };
+
+                      return (
+                        <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 14, paddingInlineStart: 48, position: 'relative', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                          {/* dot */}
+                          <div style={{ position: 'absolute', left: isRTL ? 'auto' : 10, right: isRTL ? 10 : 'auto', top: 8, width: 22, height: 22, borderRadius: '50%', background: C.white, border: `2px solid ${typeConfig.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, zIndex: 1 }}>
+                            {typeConfig.icon}
+                          </div>
+
+                          <div style={{ flex: 1, background: C.surface, borderRadius: 10, padding: '10px 14px', border: `1px solid ${C.border}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>{typeConfig.label}</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{item.title}</div>
+                                {item.detail && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{item.detail}</div>}
+                                {item.payment_method && <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>💳 {item.payment_method}</div>}
+                              </div>
+                              <div style={{ textAlign: isRTL ? 'left' : 'right', flexShrink: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: typeConfig.color }}>{fmt(item.amount)}</div>
+                                <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{new Date(item.date).toLocaleDateString(language === 'ar' ? 'ar-IQ' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>{L('لا توجد بيانات', 'No data available')}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* List */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: C.textMuted }}>Loading...</div>
@@ -233,14 +345,15 @@ export default function Customers() {
                   </div>
                 </div>
                 {!isMobile && (
-                  <>
-                    <div style={{ textAlign: 'center', minWidth: 100 }}>
-                      <div style={{ fontSize: 10, color: C.textMuted }}>{t('totalSpent')}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: C.charcoal }}>{fmt(customer.total_spent || 0)}</div>
-                    </div>
-                  </>
+                  <div style={{ textAlign: 'center', minWidth: 100 }}>
+                    <div style={{ fontSize: 10, color: C.textMuted }}>{t('totalSpent')}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.charcoal }}>{fmt(customer.total_spent || 0)}</div>
+                  </div>
                 )}
                 <div style={{ display: 'flex', gap: 6, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                  <button onClick={() => openAccount(customer)} style={{ padding: isMobile ? '6px 10px' : '7px 14px', borderRadius: 7, border: `1px solid ${C.info}44`, background: `${C.info}11`, color: C.info, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                    {L('الحساب', 'Account')}
+                  </button>
                   <button onClick={() => handleEdit(customer)} style={{ padding: isMobile ? '6px 10px' : '7px 14px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.charcoalMid, fontSize: 12, cursor: 'pointer' }}>{t('edit')}</button>
                   <button onClick={() => setDeleteConfirm(customer.id)} style={{ padding: isMobile ? '6px 10px' : '7px 14px', borderRadius: 7, border: `1px solid ${C.red}44`, background: `${C.red}11`, color: C.red, fontSize: 12, cursor: 'pointer' }}>{t('delete')}</button>
                 </div>

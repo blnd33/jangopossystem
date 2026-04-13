@@ -79,6 +79,7 @@ const customers = {
   create: (data) => post('/customers/', data),
   update: (id, data) => put(`/customers/${id}`, data),
   delete: (id) => del(`/customers/${id}`),
+  getHistory: (id) => get(`/customers/${id}/history`),
 }
 
 const categories = {
@@ -96,6 +97,9 @@ const expenses = {
   create: (data) => post('/expenses/', data),
   update: (id, data) => put(`/expenses/${id}`, data),
   delete: (id) => del(`/expenses/${id}`),
+  getRecurring: () => get('/expenses/recurring'),
+  generateMonthly: () => post('/expenses/generate-monthly'),
+  checkMonthly: () => get('/expenses/check-monthly'),
 }
 
 const deliveries = {
@@ -182,9 +186,16 @@ const debts = {
   addPayment: (id, data) => post(`/debts/${id}/payments`, data),
 }
 
+const history = {
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return get(`/history/${qs ? '?' + qs : ''}`)
+  },
+}
+
 const api = {
   pos, dashboard, products, customers, categories,
   expenses, deliveries, employees, gifts, giftMilestones,
-  purchaseOrders, suppliers, returns, debts
+  purchaseOrders, suppliers, returns, debts, history
 }
 export default api

@@ -30,6 +30,7 @@ const ALL_MODULES = [
   { id: 'reports',         icon: ReportIcon,     color: '#2ecc71', labelAr: 'التقارير',           labelEn: 'Reports' },
   { id: 'settings',        icon: SettingsIcon,   color: '#95a5a6', labelAr: 'الإعدادات',          labelEn: 'Settings' },
   { id: 'debts',           icon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>, color: '#e74c3c', labelAr: 'الديون', labelEn: 'Debts' },
+  { id: 'history',         icon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, color: '#0ea5e9', labelAr: 'سجل النشاط', labelEn: 'History' },
 ];
 
 export default function HomeGrid({ onNavigate }) {

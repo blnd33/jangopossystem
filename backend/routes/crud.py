@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from models import db, Product, Customer, Expense, Category
+from models import db, Product, Customer, Expense, Category, Sale, SaleItem, Debt, DebtPayment
+from datetime import date
 
 products_bp = Blueprint('products', __name__, url_prefix='/api/products')
 customers_bp = Blueprint('customers', __name__, url_prefix='/api/customers')
@@ -48,14 +49,12 @@ def get_products():
     search = request.args.get('search', '').strip()
     category_id = request.args.get('category_id')
     low_stock = request.args.get('low_stock')
-
     if search:
         query = query.filter(Product.name.ilike(f'%{search}%') | Product.barcode.ilike(f'%{search}%'))
     if category_id:
         query = query.filter_by(category_id=int(category_id))
     if low_stock == 'true':
         query = query.filter(Product.stock <= 5)
-
     products = query.order_by(Product.name).all()
     return jsonify([p.to_dict() for p in products])
 
@@ -68,14 +67,10 @@ def create_product():
     data = request.get_json()
     if not data.get('name') or data.get('price') is None:
         return jsonify({'error': 'Name and price required'}), 400
-
     product = Product(
-        name=data['name'],
-        barcode=data.get('barcode'),
-        price=float(data['price']),
-        cost=float(data.get('cost', 0)),
-        stock=int(data.get('stock', 0)),
-        category_id=data.get('category_id'),
+        name=data['name'], barcode=data.get('barcode'),
+        price=float(data['price']), cost=float(data.get('cost', 0)),
+        stock=int(data.get('stock', 0)), category_id=data.get('category_id'),
         image_url=data.get('image_url'),
     )
     db.session.add(product)
@@ -100,7 +95,7 @@ def update_product(product_id):
 @products_bp.route('/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
     product = Product.query.get_or_404(product_id)
-    product.is_active = False  # soft delete
+    product.is_active = False
     db.session.commit()
     return jsonify({'success': True})
 
@@ -138,10 +133,8 @@ def create_customer():
     if not data.get('name'):
         return jsonify({'error': 'Name required'}), 400
     customer = Customer(
-        name=data['name'],
-        phone=data.get('phone'),
-        email=data.get('email'),
-        address=data.get('address'),
+        name=data['name'], phone=data.get('phone'),
+        email=data.get('email'), address=data.get('address'),
     )
     db.session.add(customer)
     db.session.commit()
@@ -166,6 +159,86 @@ def delete_customer(customer_id):
     return jsonify({'success': True})
 
 
+@customers_bp.route('/<int:customer_id>/history', methods=['GET'])
+def get_customer_history(customer_id):
+    """Full activity history for a customer"""
+    customer = Customer.query.get_or_404(customer_id)
+
+    # ── Sales ──
+    sales = Sale.query.filter_by(customer_id=customer_id).order_by(Sale.created_at.desc()).all()
+    total_revenue = sum(s.total for s in sales)
+    total_cost = sum(
+        sum((item.product.cost if item.product else 0) * item.quantity for item in s.items)
+        for s in sales
+    )
+    total_profit = total_revenue - total_cost
+    profit_margin = round((total_profit / total_revenue * 100), 1) if total_revenue > 0 else 0
+
+    # ── Debts ──
+    debts = Debt.query.filter_by(debt_type='sale', party_id=customer_id).all()
+    if not debts:
+        debts = Debt.query.filter_by(debt_type='sale', party_name=customer.name).all()
+    today = date.today().isoformat()
+    total_debt = sum(d.remaining_amount for d in debts if d.status != 'paid')
+    total_paid_debt = sum(d.paid_amount for d in debts)
+
+    # ── Build timeline ──
+    timeline = []
+
+    for sale in sales:
+        items_summary = ', '.join(
+            f"{item.quantity}x {item.product.name if item.product else '?'}"
+            for item in sale.items[:3]
+        )
+        if len(sale.items) > 3:
+            items_summary += f' +{len(sale.items) - 3} more'
+        timeline.append({
+            'type': 'sale',
+            'date': sale.created_at.isoformat(),
+            'title': f'Invoice {sale.invoice_number}',
+            'amount': sale.total,
+            'detail': items_summary,
+            'payment_method': sale.payment_method,
+            'status': sale.status,
+        })
+
+    for debt in debts:
+        timeline.append({
+            'type': 'debt_created',
+            'date': debt.created_at.isoformat(),
+            'title': 'Debt Created',
+            'amount': debt.total_amount,
+            'detail': debt.notes or '',
+            'status': debt.status,
+        })
+        for payment in debt.payments:
+            timeline.append({
+                'type': 'debt_payment',
+                'date': payment.created_at.isoformat(),
+                'title': 'Debt Payment',
+                'amount': payment.amount,
+                'detail': payment.note or '',
+                'status': 'paid',
+            })
+
+    timeline.sort(key=lambda x: x['date'], reverse=True)
+
+    return jsonify({
+        'customer': customer.to_dict(),
+        'summary': {
+            'total_invoices': len(sales),
+            'total_revenue': round(total_revenue, 2),
+            'total_cost': round(total_cost, 2),
+            'total_profit': round(total_profit, 2),
+            'profit_margin': profit_margin,
+            'total_debt': round(total_debt, 2),
+            'total_paid_debt': round(total_paid_debt, 2),
+            'active_debts': len([d for d in debts if d.status != 'paid']),
+        },
+        'timeline': timeline,
+    })
+
+
 # ─── EXPENSES ────────────────────────────────────────────────────────────────
 
 @expenses_bp.route('/', methods=['GET'])
@@ -179,14 +252,28 @@ def create_expense():
     if not data.get('title') or data.get('amount') is None:
         return jsonify({'error': 'Title and amount required'}), 400
     expense = Expense(
-        title=data['title'],
-        amount=float(data['amount']),
-        category=data.get('category'),
-        note=data.get('note'),
+        title=data['title'], amount=float(data['amount']),
+        category=data.get('category'), date=data.get('date'),
+        vendor=data.get('vendor'), recurring=data.get('recurring', False),
+        note=data.get('notes') or data.get('note'),
     )
     db.session.add(expense)
     db.session.commit()
     return jsonify(expense.to_dict()), 201
+
+@expenses_bp.route('/<int:expense_id>', methods=['PUT'])
+def update_expense(expense_id):
+    expense = Expense.query.get_or_404(expense_id)
+    data = request.get_json()
+    expense.title     = data.get('title', expense.title)
+    expense.amount    = float(data.get('amount', expense.amount))
+    expense.category  = data.get('category', expense.category)
+    expense.date      = data.get('date', expense.date)
+    expense.vendor    = data.get('vendor', expense.vendor)
+    expense.recurring = data.get('recurring', expense.recurring)
+    expense.note      = data.get('notes') or data.get('note') or expense.note
+    db.session.commit()
+    return jsonify(expense.to_dict())
 
 @expenses_bp.route('/<int:expense_id>', methods=['DELETE'])
 def delete_expense(expense_id):
@@ -194,3 +281,67 @@ def delete_expense(expense_id):
     db.session.delete(expense)
     db.session.commit()
     return jsonify({'success': True})
+
+
+# ─── RECURRING EXPENSES ───────────────────────────────────────────────────────
+
+@expenses_bp.route('/recurring', methods=['GET'])
+def get_recurring():
+    recurring = Expense.query.filter_by(recurring=True).order_by(Expense.title).all()
+    return jsonify([e.to_dict() for e in recurring])
+
+@expenses_bp.route('/generate-monthly', methods=['POST'])
+def generate_monthly():
+    today = date.today()
+    current_month = today.strftime('%Y-%m')
+    first_day = today.strftime('%Y-%m-01')
+    templates = Expense.query.filter_by(recurring=True).all()
+    if not templates:
+        return jsonify({'generated': 0, 'expenses': [], 'message': 'No recurring templates found'}), 200
+    generated = []
+    skipped = 0
+    for tmpl in templates:
+        existing = Expense.query.filter(
+            Expense.title == tmpl.title,
+            Expense.recurring == False,
+            Expense.date.like(f'{current_month}%')
+        ).first()
+        if existing:
+            skipped += 1
+            continue
+        new_expense = Expense(
+            title=tmpl.title, amount=tmpl.amount, category=tmpl.category,
+            date=first_day, vendor=tmpl.vendor, recurring=False,
+            note=f'Auto-generated from recurring template — {current_month}',
+        )
+        db.session.add(new_expense)
+        generated.append(new_expense)
+    db.session.commit()
+    return jsonify({
+        'generated': len(generated), 'skipped': skipped,
+        'month': current_month, 'expenses': [e.to_dict() for e in generated],
+    }), 201
+
+@expenses_bp.route('/check-monthly', methods=['GET'])
+def check_monthly():
+    current_month = date.today().strftime('%Y-%m')
+    templates = Expense.query.filter_by(recurring=True).all()
+    result = []
+    for tmpl in templates:
+        existing = Expense.query.filter(
+            Expense.title == tmpl.title,
+            Expense.recurring == False,
+            Expense.date.like(f'{current_month}%')
+        ).first()
+        result.append({
+            'title': tmpl.title, 'amount': tmpl.amount,
+            'category': tmpl.category, 'generated': existing is not None,
+        })
+    total_templates = len(templates)
+    total_generated = sum(1 for r in result if r['generated'])
+    return jsonify({
+        'month': current_month, 'total_templates': total_templates,
+        'total_generated': total_generated,
+        'all_generated': total_generated == total_templates,
+        'details': result,
+    })

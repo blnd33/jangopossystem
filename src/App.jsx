@@ -31,6 +31,7 @@ import UserManagement from './pages/UserManagement';
 import Reports from './pages/Reports';
 import Gifts from './pages/Gifts';
 import Debts from './pages/Debts';
+import History from './pages/History';
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -136,6 +137,7 @@ export default function App() {
       case 'reports': return <Reports />;
       case 'gifts': return <Gifts />;
       case 'debts': return <Debts />;
+      case 'history': return <History />;
       default: return <PlaceholderPage pageId={activePage} />;
     }
   }
@@ -145,7 +147,7 @@ export default function App() {
     'customers', 'pos', 'expenses', 'sales-report',
     'pl', 'cashflow', 'employees', 'delivery',
     'purchase-orders', 'returns', 'settings',
-    'user-management', 'reports', 'gifts', 'debts'
+    'user-management', 'reports', 'gifts', 'debts', 'history'
   ];
 
   const isFullPage = fullPageModules.includes(activePage);
