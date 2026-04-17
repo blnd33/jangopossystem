@@ -84,11 +84,16 @@ function A4Invoice({ receipt, fmt, t, language, isRTL, onNewSale, C }) {
         <div style={{ padding: '24px 36px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
           <div style={{ textAlign: isAr ? 'right' : 'left' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-              {isAr ? 'بيانات العميل' : 'Bill To'}
+              {isAr ? 'بيانات المشتري' : 'Bill To'}
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
-              {receipt.customer || (isAr ? 'زبون عادي' : 'Walk-in Customer')}
+              {receipt.buyer_name || receipt.customer || (isAr ? 'زبون عادي' : 'Walk-in Customer')}
             </div>
+            {receipt.buyer_name && receipt.customer && receipt.buyer_name !== receipt.customer && (
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                {isAr ? 'الحساب:' : 'Account:'} {receipt.customer}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: isAr ? 'left' : 'right' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
@@ -101,8 +106,8 @@ function A4Invoice({ receipt, fmt, t, language, isRTL, onNewSale, C }) {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: '#64748b' }}>{isAr ? 'الحالة:' : 'Status:'}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 10px', borderRadius: 20 }}>
-                  {isAr ? 'مدفوعة' : 'PAID'}
+                <span style={{ fontSize: 12, fontWeight: 700, color: receipt.payment_method === 'debt' ? '#b45309' : '#15803d', background: receipt.payment_method === 'debt' ? '#fffbeb' : '#f0fdf4', border: `1px solid ${receipt.payment_method === 'debt' ? '#fde68a' : '#bbf7d0'}`, padding: '2px 10px', borderRadius: 20 }}>
+                  {receipt.payment_method === 'debt' ? (isAr ? 'دين' : 'DEBT') : (isAr ? 'مدفوعة' : 'PAID')}
                 </span>
               </div>
             </div>
@@ -231,6 +236,7 @@ export default function POS() {
   const [discountType, setDiscountType] = useState('%');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [amountPaid, setAmountPaid] = useState('');
+  const [buyerName, setBuyerName] = useState('');
   const [note, setNote] = useState('');
   const [receipt, setReceipt] = useState(null);
   const [filterCategory, setFilterCategory] = useState('all');
@@ -339,6 +345,7 @@ export default function POS() {
           discount: item.itemDiscount || 0,
         })),
         customer_id: selectedCustomer?.id || null,
+        buyer_name: buyerName.trim() || null,
         discount: discountAmount,
         tax: 0,
         payment_method: paymentMethod,
@@ -359,6 +366,7 @@ export default function POS() {
       setSelectedCustomer(null);
       setDiscount('');
       setAmountPaid('');
+      setBuyerName('');
       setNote('');
       setBarcodeInput('');
       setBarcodeResult(null);
@@ -483,8 +491,9 @@ export default function POS() {
           ))}
         </div>
         <div style={{ marginBottom: 10 }}>
+          {/* Payment Methods: cash and debt only */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
-            {['cash', 'card', 'transfer', 'debt'].map(method => (
+            {['cash', 'debt'].map(method => (
               <button key={method} onClick={() => setPaymentMethod(method)} style={{
                 padding: '7px 0', borderRadius: 7, cursor: 'pointer',
                 border: `1px solid ${paymentMethod === method ? C.red : C.border}`,
@@ -496,6 +505,21 @@ export default function POS() {
               </button>
             ))}
           </div>
+
+          {/* Buyer Name */}
+          <input
+            placeholder={language === 'ar' ? 'اسم المشتري (اختياري)' : 'Buyer Name (optional)'}
+            value={buyerName}
+            onChange={e => setBuyerName(e.target.value)}
+            style={{
+              width: '100%', padding: '9px 12px', marginBottom: 8,
+              border: `1px solid ${buyerName ? C.red : C.border}`,
+              borderRadius: 7, fontSize: 13, outline: 'none',
+              boxSizing: 'border-box', background: buyerName ? `${C.red}06` : C.white,
+              color: C.charcoal, textAlign: isRTL ? 'right' : 'left',
+            }}
+          />
+
           <input type="number" placeholder={t('amountPaid')} value={amountPaid} onChange={e => setAmountPaid(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, outline: 'none', boxSizing: 'border-box', background: C.white, color: C.charcoal, textAlign: isRTL ? 'right' : 'left' }} />
           {amountPaid && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, flexDirection: isRTL ? 'row-reverse' : 'row' }}>

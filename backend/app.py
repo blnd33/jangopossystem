@@ -11,6 +11,8 @@ from routes.purchase_orders import po_bp
 from routes.suppliers_returns import suppliers_bp, returns_bp
 from routes.debts import debts_bp
 from routes.history import history_bp
+from routes.warehouses import warehouses_bp
+from routes.notifications import notifications_bp
 import os
 
 
@@ -47,6 +49,8 @@ def create_app():
     app.register_blueprint(returns_bp)
     app.register_blueprint(debts_bp)
     app.register_blueprint(history_bp)
+    app.register_blueprint(warehouses_bp)
+    app.register_blueprint(notifications_bp)
 
     @app.route('/api/health')
     def health():

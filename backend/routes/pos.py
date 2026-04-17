@@ -37,9 +37,11 @@ def checkout():
     total = (subtotal - sale_discount) + tax
     amount_paid = data.get('amount_paid', total)
     change_given = max(0.0, amount_paid - total)
+    buyer_name = data.get('buyer_name', None)
     sale = Sale(
         invoice_number=generate_invoice_number(),
         customer_id=data.get('customer_id'),
+        buyer_name=buyer_name,
         subtotal=subtotal, discount=sale_discount, tax=tax, total=total,
         payment_method=data.get('payment_method', 'cash'),
         amount_paid=amount_paid, change_given=change_given,
@@ -60,7 +62,12 @@ def checkout():
         if customer:
             customer.total_spent += total
     db.session.commit()
-    return jsonify({'success': True, 'sale': sale.to_dict(include_items=True)}), 201
+
+    # Build response manually to ensure buyer_name is always included
+    sale_dict = sale.to_dict(include_items=True)
+    sale_dict['buyer_name'] = sale.buyer_name
+
+    return jsonify({'success': True, 'sale': sale_dict}), 201
 
 
 @pos_bp.route('/products', methods=['GET'])

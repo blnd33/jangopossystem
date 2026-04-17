@@ -28,9 +28,15 @@ const ICON_MAP = {
   'user-management': UsersIcon,
   gifts: () => <span style={{ fontSize: 15 }}>🎁</span>,
   debts: DebtIcon,
+  'sales-receipts': () => <span style={{ fontSize: 15 }}>🧾</span>,
   history: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  warehouses: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
     </svg>
   ),
 };
@@ -91,6 +97,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
       label: t('inventorySection'),
       items: [
         { id: 'inventory', label: t('inventory') },
+        { id: 'warehouses', label: language === 'ar' ? 'المستودعات' : 'Warehouses' },
         { id: 'suppliers', label: t('suppliers') },
         { id: 'categories', label: t('categories') },
         { id: 'purchase-orders', label: t('purchaseOrders') },
@@ -109,6 +116,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
       label: t('financeSection'),
       items: [
         { id: 'sales-report', label: t('salesReport') },
+        { id: 'sales-receipts', label: language === 'ar' ? 'سجل الفواتير' : 'Sales Receipts' },
         { id: 'expenses', label: t('expenses') },
         { id: 'pl', label: t('pl') },
         { id: 'cashflow', label: t('cashflow') },
@@ -137,6 +145,9 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
     items: section.items.filter(item => {
       if (item.id === 'user-management') return isSuperAdmin();
       if (item.id === 'debts') return true;
+      if (item.id === 'history') return true;
+      if (item.id === 'warehouses') return true;
+      if (item.id === 'sales-receipts') return true;
       return hasPermission(item.id);
     })
   })).filter(section => section.items.length > 0);

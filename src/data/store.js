@@ -1,6 +1,4 @@
 // ── Colors ─────────────────────────────────────────
-
-// ── Colors ─────────────────────────────────────────
 export function getColors() {
   return {
     steel: "#C8CDD2",
@@ -43,7 +41,6 @@ export function getDarkColors() {
   };
 }
 
-// Keep COLORS for backward compatibility — will be overridden by useThemeColors()
 export const COLORS = {
   steel: "#C8CDD2",
   steelDark: "#9BA3AA",
@@ -301,37 +298,65 @@ export function logAccess(user, action) {
   return entry;
 }
 
-// ── Notifications ──────────────────────────────────
+// ── Notifications — now backed by Flask API ────────
+const BASE = 'http://127.0.0.1:5000';
+
+export async function getUnreadNotificationsAsync() {
+  try {
+    const res = await fetch(`${BASE}/api/notifications`);
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+// Keep sync version for legacy calls — returns localStorage fallback
 export function getUnreadNotifications() {
   return JSON.parse(localStorage.getItem("jango_notifications") || "[]");
 }
+
 export function saveNotifications(data) {
   localStorage.setItem("jango_notifications", JSON.stringify(data));
 }
-export function addNotification(message, type = "info") {
-  const notifications = getUnreadNotifications();
-  const notification = {
-    id: generateId(),
-    message,
-    type,
-    time: new Date().toISOString(),
-    read: false,
-  };
-  saveNotifications([notification, ...notifications].slice(0, 100));
+
+export async function addNotification(message, type = "info") {
+  try {
+    await fetch(`${BASE}/api/notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, type }),
+    });
+  } catch {
+    // fallback to localStorage if backend unreachable
+    const notifications = getUnreadNotifications();
+    const notification = {
+      id: generateId(),
+      message,
+      type,
+      time: new Date().toISOString(),
+      read: false,
+    };
+    saveNotifications([notification, ...notifications].slice(0, 100));
+  }
 }
-export function markAllRead() {
-  const notifications = getUnreadNotifications();
-  saveNotifications(notifications.map(n => ({ ...n, read: true })));
+
+export async function markAllRead() {
+  try {
+    await fetch(`${BASE}/api/notifications/mark-read`, { method: 'POST' });
+  } catch {
+    const notifications = getUnreadNotifications();
+    saveNotifications(notifications.map(n => ({ ...n, read: true })));
+  }
 }
+
+// ── Currency ───────────────────────────────────────
 export function getCurrencySettings() {
   const defaults = { currency: 'USD', symbol: '$', exchangeRate: 1480 };
   return JSON.parse(localStorage.getItem('jango_currency') || JSON.stringify(defaults));
 }
-
 export function saveCurrencySettings(data) {
   localStorage.setItem('jango_currency', JSON.stringify(data));
 }
-
 export function formatMoney(amount, currencySettings) {
   if (!currencySettings) currencySettings = getCurrencySettings();
   if (currencySettings.currency === 'IQD') {
@@ -340,6 +365,7 @@ export function formatMoney(amount, currencySettings) {
   }
   return `$${parseFloat(amount).toFixed(2)}`;
 }
+
 // ── Gifts ──────────────────────────────────────────
 export function getGifts() {
   return JSON.parse(localStorage.getItem('jango_gifts') || '[]');
@@ -347,7 +373,6 @@ export function getGifts() {
 export function saveGifts(data) {
   localStorage.setItem('jango_gifts', JSON.stringify(data));
 }
-
 export function getGiftMilestones() {
   const defaults = [
     { id: 'ms1', threshold: 500, giftType: 'discount', giftValue: 10, description: '10% discount voucher', active: true },
@@ -360,6 +385,7 @@ export function getGiftMilestones() {
 export function saveGiftMilestones(data) {
   localStorage.setItem('jango_gift_milestones', JSON.stringify(data));
 }
+
 // ── Theme ──────────────────────────────────────────
 export function getTheme() {
   return localStorage.getItem('jango_theme') || 'light';

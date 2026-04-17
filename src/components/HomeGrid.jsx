@@ -31,6 +31,7 @@ const ALL_MODULES = [
   { id: 'settings',        icon: SettingsIcon,   color: '#95a5a6', labelAr: 'الإعدادات',          labelEn: 'Settings' },
   { id: 'debts',           icon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>, color: '#e74c3c', labelAr: 'الديون', labelEn: 'Debts' },
   { id: 'history',         icon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, color: '#0ea5e9', labelAr: 'سجل النشاط', labelEn: 'History' },
+  { id: 'warehouses',      icon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>, color: '#8b5cf6', labelAr: 'المستودعات', labelEn: 'Warehouses' },
 ];
 
 export default function HomeGrid({ onNavigate }) {

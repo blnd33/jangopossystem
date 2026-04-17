@@ -11,17 +11,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = getCurrentUser();
-    if (user) {
-      // Verify user still exists in users list
-      const users = getUsers();
-      const stillExists = users.find(u => u.id === user.id);
-      if (stillExists) {
-        setCurrentUserState(stillExists);
-      } else {
-        logoutUser();
-      }
-    }
+    // Always clear session on app start — force login every time
+    logoutUser();
     setLoading(false);
   }, []);
 

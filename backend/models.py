@@ -1,4 +1,4 @@
-from flask_sqlalchemy import SQLAlchemy
+﻿from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
 db = SQLAlchemy()
@@ -76,6 +76,7 @@ class Sale(db.Model):
     amount_paid = db.Column(db.Float, default=0.0)
     change_given = db.Column(db.Float, default=0.0)
     note = db.Column(db.String(500), nullable=True)
+    buyer_name = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(50), default='completed')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     items = db.relationship('SaleItem', backref='sale', lazy=True, cascade='all, delete-orphan')
@@ -88,7 +89,7 @@ class Sale(db.Model):
             'subtotal': self.subtotal, 'discount': self.discount, 'tax': self.tax,
             'total': self.total, 'payment_method': self.payment_method,
             'amount_paid': self.amount_paid, 'change_given': self.change_given,
-            'note': self.note, 'status': self.status, 'created_at': self.created_at.isoformat(),
+            'note': self.note, 'buyer_name': self.buyer_name, 'status': self.status, 'created_at': self.created_at.isoformat(),
         }
         if include_items:
             data['items'] = [item.to_dict() for item in self.items]
@@ -124,6 +125,7 @@ class Expense(db.Model):
     vendor = db.Column(db.String(200), nullable=True)
     recurring = db.Column(db.Boolean, default=False)
     note = db.Column(db.String(500), nullable=True)
+    buyer_name = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -350,6 +352,7 @@ class DebtPayment(db.Model):
     amount = db.Column(db.Float, nullable=False)
     payment_date = db.Column(db.String(20), nullable=True)
     note = db.Column(db.String(500), nullable=True)
+    buyer_name = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -360,4 +363,54 @@ class DebtPayment(db.Model):
             'payment_date': self.payment_date,
             'note': self.note,
             'created_at': self.created_at.isoformat(),
+        }
+
+
+class Warehouse(db.Model):
+    __tablename__ = 'warehouses'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, unique=True)
+    location = db.Column(db.String(500), nullable=True)
+    manager = db.Column(db.String(200), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    notes = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    stock_items = db.relationship('WarehouseStock', backref='warehouse', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        total_items = sum(s.quantity for s in self.stock_items)
+        return {
+            'id': self.id, 'name': self.name, 'location': self.location,
+            'manager': self.manager, 'is_active': self.is_active,
+            'notes': self.notes, 'created_at': self.created_at.isoformat(),
+            'total_items': total_items,
+            'product_count': len(self.stock_items),
+        }
+
+
+class WarehouseStock(db.Model):
+    __tablename__ = 'warehouse_stock'
+    id = db.Column(db.Integer, primary_key=True)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    quantity = db.Column(db.Integer, default=0)
+    low_stock_alert = db.Column(db.Integer, default=5)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    product = db.relationship('Product', lazy=True)
+    __table_args__ = (db.UniqueConstraint('warehouse_id', 'product_id', name='unique_warehouse_product'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'warehouse_id': self.warehouse_id,
+            'warehouse_name': self.warehouse.name if self.warehouse else '',
+            'product_id': self.product_id,
+            'product_name': self.product.name if self.product else '',
+            'product_barcode': self.product.barcode if self.product else '',
+            'product_price': self.product.price if self.product else 0,
+            'product_cost': self.product.cost if self.product else 0,
+            'quantity': self.quantity,
+            'low_stock_alert': self.low_stock_alert,
+            'is_low': self.quantity <= self.low_stock_alert,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

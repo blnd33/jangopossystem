@@ -186,6 +186,20 @@ const debts = {
   addPayment: (id, data) => post(`/debts/${id}/payments`, data),
 }
 
+const warehouses = {
+  getAll: () => get('/warehouses/'),
+  getOne: (id) => get(`/warehouses/${id}`),
+  getSummary: () => get('/warehouses/summary'),
+  getProductStock: (productId) => get(`/warehouses/product/${productId}`),
+  create: (data) => post('/warehouses/', data),
+  update: (id, data) => put(`/warehouses/${id}`, data),
+  delete: (id) => del(`/warehouses/${id}`),
+  addStock: (id, data) => post(`/warehouses/${id}/stock`, data),
+  setStock: (id, productId, data) => put(`/warehouses/${id}/stock/${productId}`, data),
+  removeStock: (id, productId) => del(`/warehouses/${id}/stock/${productId}`),
+  transfer: (data) => post('/warehouses/transfer', data),
+}
+
 const history = {
   getAll: (params = {}) => {
     const qs = new URLSearchParams(params).toString()
@@ -196,6 +210,6 @@ const history = {
 const api = {
   pos, dashboard, products, customers, categories,
   expenses, deliveries, employees, gifts, giftMilestones,
-  purchaseOrders, suppliers, returns, debts, history
+  purchaseOrders, suppliers, returns, debts, history, warehouses
 }
 export default api

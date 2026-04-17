@@ -5,9 +5,22 @@ import { useLanguage } from '../data/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useThemeColors } from '../hooks/useThemeColors';
-import { getUnreadNotifications, markAllRead } from '../data/store';
 
-export default function TopBar({ activePage, setActivePage }) {
+const BASE = 'http://127.0.0.1:5000';
+
+async function fetchNotificationsFromAPI() {
+  try {
+    const res = await fetch(`${BASE}/api/notifications`);
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+function markAllReadAPI() {
+  fetch(`${BASE}/api/notifications/mark-read`, { method: 'POST' }).catch(() => null);
+}
+
+export default function TopBar({ activePage, setActivePage, onMenuClick, isMobile }) {
   const { language, changeLanguage, t, isRTL } = useLanguage();
   const { currentUser, logout } = useAuth();
   const { toggleTheme, isDark } = useTheme();
@@ -19,10 +32,14 @@ export default function TopBar({ activePage, setActivePage }) {
   const userRef = useRef();
 
   useEffect(() => {
-    setNotifications(getUnreadNotifications());
+    // Fetch immediately
+    fetchNotificationsFromAPI().then(setNotifications);
+
+    // Poll every 5 seconds
     const interval = setInterval(() => {
-      setNotifications(getUnreadNotifications());
+      fetchNotificationsFromAPI().then(setNotifications);
     }, 5000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -35,9 +52,9 @@ export default function TopBar({ activePage, setActivePage }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  function handleMarkAllRead() {
-    markAllRead();
-    setNotifications(getUnreadNotifications());
+  async function handleMarkAllRead() {
+    await markAllReadAPI();
+    fetchNotificationsFromAPI().then(setNotifications);
   }
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -58,6 +75,10 @@ export default function TopBar({ activePage, setActivePage }) {
     reports: t('reports'), settings: t('settings'),
     'user-management': t('userManagement'),
     gifts: t('gifts'),
+    'sales-receipts': language === 'ar' ? 'سجل الفواتير' : 'Sales Receipts',
+    debts: language === 'ar' ? 'الديون' : 'Debts',
+    history: language === 'ar' ? 'سجل النشاط' : 'History',
+    warehouses: language === 'ar' ? 'المستودعات' : 'Warehouses',
   };
 
   function getRoleLabel(role) {
@@ -81,58 +102,68 @@ export default function TopBar({ activePage, setActivePage }) {
       fontFamily, zIndex: 50, position: 'relative'
     }}>
 
-      {/* Left — Page title */}
-      <div>
-        <div style={{
-          fontSize: 18, fontWeight: 700, color: C.charcoal,
-          fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif'
-        }}>
-          {PAGE_TITLES_T[activePage] || activePage}
+      {/* Left — Page title + mobile menu */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+        {isMobile && (
+          <button onClick={onMenuClick} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: C.charcoal, padding: 4, display: 'flex', alignItems: 'center' }}>
+            ☰
+          </button>
+        )}
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.charcoal, fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif' }}>
+            {PAGE_TITLES_T[activePage] || activePage}
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>{today}</div>
         </div>
-        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>{today}</div>
       </div>
 
       {/* Right — Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }}>
 
         {/* Language Switcher */}
-        <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
-          {[{ code: 'en', label: '🇬🇧 EN' }, { code: 'ar', label: '🇮🇶 AR' }].map(lang => (
-            <button key={lang.code} onClick={() => changeLanguage(lang.code)} style={{
-              padding: '6px 12px', border: 'none', cursor: 'pointer',
-              background: language === lang.code ? C.charcoal : C.white,
-              color: language === lang.code ? '#fff' : C.charcoalMid,
-              fontSize: 12, fontWeight: language === lang.code ? 600 : 400,
-              transition: 'all 0.15s'
-            }}>
-              {lang.label}
-            </button>
-          ))}
-        </div>
+        {!isMobile && (
+          <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+            {[{ code: 'en', label: '🇬🇧 EN' }, { code: 'ar', label: '🇮🇶 AR' }].map(lang => (
+              <button key={lang.code} onClick={() => changeLanguage(lang.code)} style={{
+                padding: '6px 12px', border: 'none', cursor: 'pointer',
+                background: language === lang.code ? C.charcoal : C.white,
+                color: language === lang.code ? '#fff' : C.charcoalMid,
+                fontSize: 12, fontWeight: language === lang.code ? 600 : 400,
+                transition: 'all 0.15s'
+              }}>
+                {lang.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* 🌙 Dark Mode Toggle */}
-        <button onClick={toggleTheme} style={{
-          background: isDark ? '#FFD700' + '22' : C.offWhite,
-          border: `1px solid ${isDark ? '#FFD700' + '44' : C.border}`,
-          borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
-          color: isDark ? '#FFD700' : C.charcoalMid,
-          fontSize: 16, display: 'flex', alignItems: 'center', gap: 6,
-          transition: 'all 0.2s'
-        }}>
-          {isDark ? '☀️' : '🌙'}
-        </button>
+        {/* Dark Mode Toggle */}
+        {!isMobile && (
+          <button onClick={toggleTheme} style={{
+            background: isDark ? '#FFD700' + '22' : C.offWhite,
+            border: `1px solid ${isDark ? '#FFD700' + '44' : C.border}`,
+            borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
+            color: isDark ? '#FFD700' : C.charcoalMid,
+            fontSize: 16, display: 'flex', alignItems: 'center', gap: 6,
+            transition: 'all 0.2s'
+          }}>
+            {isDark ? '☀️' : '🌙'}
+          </button>
+        )}
 
         {/* New Sale Button */}
-        <button onClick={() => setActivePage('pos')} style={{
-          background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`,
-          border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer',
-          color: '#fff', fontSize: 13, fontWeight: 600, letterSpacing: 0.3,
-          boxShadow: `0 2px 8px ${C.red}44`,
-          display: 'flex', alignItems: 'center', gap: 6
-        }}>
-          <PosIcon />
-          {t('newSale')}
-        </button>
+        {!isMobile && (
+          <button onClick={() => setActivePage('pos')} style={{
+            background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`,
+            border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer',
+            color: '#fff', fontSize: 13, fontWeight: 600, letterSpacing: 0.3,
+            boxShadow: `0 2px 8px ${C.red}44`,
+            display: 'flex', alignItems: 'center', gap: 6
+          }}>
+            <PosIcon />
+            {t('newSale')}
+          </button>
+        )}
 
         {/* Notification Bell */}
         <div ref={notifRef} style={{ position: 'relative' }}>
@@ -190,7 +221,7 @@ export default function TopBar({ activePage, setActivePage }) {
                     flexDirection: isRTL ? 'row-reverse' : 'row'
                   }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: notif.type === 'login' ? `${C.success}20` : `${C.warning}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-                      {notif.type === 'login' ? '🔔' : '👋'}
+                      {notif.type === 'login' ? '🔔' : notif.type === 'logout' ? '👋' : notif.type === 'sale' ? '💰' : '📢'}
                     </div>
                     <div style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
                       <div style={{ fontSize: 12, fontWeight: notif.read ? 400 : 600, color: C.charcoal, lineHeight: 1.4 }}>{notif.message}</div>
@@ -224,10 +255,12 @@ export default function TopBar({ activePage, setActivePage }) {
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff' }}>
               {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
-            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoal, lineHeight: 1.2 }}>{currentUser?.name}</div>
-              <div style={{ fontSize: 10, color: C.textMuted }}>{getRoleLabel(currentUser?.role)}</div>
-            </div>
+            {!isMobile && (
+              <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.charcoal, lineHeight: 1.2 }}>{currentUser?.name}</div>
+                <div style={{ fontSize: 10, color: C.textMuted }}>{getRoleLabel(currentUser?.role)}</div>
+              </div>
+            )}
             <span style={{ fontSize: 10, color: C.textMuted }}>▾</span>
           </div>
 
@@ -248,7 +281,6 @@ export default function TopBar({ activePage, setActivePage }) {
                 </div>
               </div>
 
-              {/* Dark Mode Toggle in menu */}
               <button onClick={toggleTheme} style={{ width: '100%', padding: '11px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: C.charcoal, textAlign: isRTL ? 'right' : 'left', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${C.offWhite}`, flexDirection: isRTL ? 'row-reverse' : 'row' }}
                 onMouseEnter={e => e.currentTarget.style.background = C.offWhite}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
