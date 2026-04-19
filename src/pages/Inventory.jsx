@@ -15,6 +15,7 @@ export default function Inventory() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [mergeInfo, setMergeInfo] = useState(null); // weighted avg result popup
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [viewMode, setViewMode] = useState('grid');
@@ -72,13 +73,32 @@ export default function Inventory() {
         description: form.description,
         image_url: form.image_url || null,
       };
+
       if (editingId) {
+        // ── Editing existing product ──
         const updated = await api.products.update(editingId, payload);
         setProducts(ps => ps.map(p => p.id === editingId ? updated : p));
       } else {
+        // ── Creating — may merge with existing ──
         const created = await api.products.create(payload);
-        setProducts(ps => [...ps, created]);
+
+        if (created._merged) {
+          // Product already existed — weighted avg applied
+          setProducts(ps => ps.map(p => p.id === created.id ? created : p));
+          // Show a nice info popup instead of plain alert
+          setMergeInfo({
+            name: created.name,
+            addedUnits: created._added_units,
+            avgCost: created._avg_cost,
+            newPrice: created._new_price,
+            totalStock: created.stock,
+          });
+        } else {
+          // Brand new product
+          setProducts(ps => [...ps, created]);
+        }
       }
+
       resetForm();
     } catch (err) {
       alert(err.message);
@@ -193,6 +213,62 @@ export default function Inventory() {
         </select>
       </div>
 
+      {/* ── Weighted Average Merge Result Popup ── */}
+      {mergeInfo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ background: C.white, borderRadius: 14, padding: 28, width: 400, boxShadow: '0 8px 40px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>📦</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, marginBottom: 6 }}>
+              {language === 'ar' ? 'تم تحديث المخزون' : 'Stock Updated'}
+            </div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 20 }}>
+              {language === 'ar' ? `المنتج "${mergeInfo.name}" موجود مسبقاً` : `Product "${mergeInfo.name}" already exists`}
+            </div>
+
+            {/* Stats grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+              <div style={{ background: C.offWhite, borderRadius: 8, padding: '12px 10px' }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
+                  {language === 'ar' ? 'الوحدات المضافة' : 'Units Added'}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.charcoal }}>+{mergeInfo.addedUnits}</div>
+              </div>
+              <div style={{ background: C.offWhite, borderRadius: 8, padding: '12px 10px' }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
+                  {language === 'ar' ? 'إجمالي المخزون' : 'Total Stock'}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.success }}>{mergeInfo.totalStock}</div>
+              </div>
+              <div style={{ background: `${C.info}10`, border: `1px solid ${C.info}30`, borderRadius: 8, padding: '12px 10px' }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
+                  {language === 'ar' ? 'متوسط التكلفة الجديد' : 'New Avg Cost'}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.info }}>${mergeInfo.avgCost}</div>
+              </div>
+              <div style={{ background: `${C.success}10`, border: `1px solid ${C.success}30`, borderRadius: 8, padding: '12px 10px' }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
+                  {language === 'ar' ? 'سعر البيع الجديد' : 'New Sell Price'}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.success }}>${mergeInfo.newPrice}</div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 20, padding: '8px 12px', background: `${C.warning}10`, border: `1px solid ${C.warning}30`, borderRadius: 8 }}>
+              {language === 'ar'
+                ? '✅ تم حساب سعر البيع الجديد تلقائياً بنفس نسبة الربح لضمان عدم الخسارة'
+                : '✅ Sell price auto-recalculated using the same profit margin to avoid losses'}
+            </div>
+
+            <button
+              onClick={() => setMergeInfo(null)}
+              style={{ padding: '10px 32px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              {language === 'ar' ? 'حسناً' : 'OK'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Form Modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
@@ -200,6 +276,15 @@ export default function Inventory() {
             <div style={{ fontSize: 18, fontWeight: 700, color: C.charcoal, marginBottom: 20 }}>
               {editingId ? `${t('edit')} ${t('inventory')}` : t('addProduct')}
             </div>
+
+            {/* Info note when adding (not editing) */}
+            {!editingId && (
+              <div style={{ background: `${C.info}10`, border: `1px solid ${C.info}30`, borderRadius: 8, padding: '8px 14px', marginBottom: 16, fontSize: 12, color: C.info }}>
+                {language === 'ar'
+                  ? '💡 إذا كان المنتج موجوداً، سيتم حساب متوسط التكلفة المرجح وتحديث سعر البيع تلقائياً بنفس نسبة الربح'
+                  : '💡 If product exists, weighted average cost will be calculated and sell price auto-updated to keep the same profit margin'}
+              </div>
+            )}
 
             {/* Photo Upload */}
             <div style={{ marginBottom: 18, textAlign: 'center' }}>
@@ -245,7 +330,9 @@ export default function Inventory() {
               )}
 
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>{t('stockQty')} *</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 5 }}>
+                  {editingId ? t('stockQty') : (language === 'ar' ? 'الكمية المضافة' : 'Quantity to Add')} *
+                </div>
                 <input type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} placeholder="0" style={inputStyle} />
               </div>
               <div>

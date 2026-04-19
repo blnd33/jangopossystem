@@ -67,6 +67,48 @@ def create_product():
     data = request.get_json()
     if not data.get('name') or data.get('price') is None:
         return jsonify({'error': 'Name and price required'}), 400
+
+    # ── Check if product already exists (by barcode first, then by name) ──
+    existing = None
+    if data.get('barcode') and data['barcode'].strip():
+        existing = Product.query.filter_by(
+            barcode=data['barcode'].strip(), is_active=True
+        ).first()
+    if not existing and data.get('name') and data['name'].strip():
+        existing = Product.query.filter(
+            Product.name.ilike(data['name'].strip()), Product.is_active == True
+        ).first()
+
+    if existing:
+        new_units      = int(data.get('stock', 0))
+        new_cost       = float(data.get('cost', existing.cost))
+        total_units    = existing.stock + new_units
+
+        # ── Weighted average cost ──
+        old_total_cost = existing.cost * existing.stock
+        new_total_cost = new_cost * new_units
+        avg_cost = (old_total_cost + new_total_cost) / total_units if total_units > 0 else new_cost
+
+        # ── Keep same profit margin ratio → recalculate sell price ──
+        if existing.cost > 0:
+            margin_ratio = existing.price / existing.cost
+            new_price    = avg_cost * margin_ratio
+        else:
+            new_price = existing.price
+
+        existing.cost  = round(avg_cost, 2)
+        existing.price = round(new_price, 2)
+        existing.stock = total_units
+        db.session.commit()
+
+        result = existing.to_dict()
+        result['_merged']      = True
+        result['_avg_cost']    = round(avg_cost, 2)
+        result['_new_price']   = round(new_price, 2)
+        result['_added_units'] = new_units
+        return jsonify(result), 200
+
+    # ── New product — create normally ──
     product = Product(
         name=data['name'], barcode=data.get('barcode'),
         price=float(data['price']), cost=float(data.get('cost', 0)),
@@ -81,14 +123,14 @@ def create_product():
 def update_product(product_id):
     product = Product.query.get_or_404(product_id)
     data = request.get_json()
-    product.name = data.get('name', product.name)
-    product.barcode = data.get('barcode', product.barcode)
-    product.price = float(data.get('price', product.price))
-    product.cost = float(data.get('cost', product.cost))
-    product.stock = int(data.get('stock', product.stock))
+    product.name        = data.get('name', product.name)
+    product.barcode     = data.get('barcode', product.barcode)
+    product.price       = float(data.get('price', product.price))
+    product.cost        = float(data.get('cost', product.cost))
+    product.stock       = int(data.get('stock', product.stock))
     product.category_id = data.get('category_id', product.category_id)
-    product.image_url = data.get('image_url', product.image_url)
-    product.is_active = data.get('is_active', product.is_active)
+    product.image_url   = data.get('image_url', product.image_url)
+    product.is_active   = data.get('is_active', product.is_active)
     db.session.commit()
     return jsonify(product.to_dict())
 
@@ -144,9 +186,9 @@ def create_customer():
 def update_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
     data = request.get_json()
-    customer.name = data.get('name', customer.name)
-    customer.phone = data.get('phone', customer.phone)
-    customer.email = data.get('email', customer.email)
+    customer.name    = data.get('name', customer.name)
+    customer.phone   = data.get('phone', customer.phone)
+    customer.email   = data.get('email', customer.email)
     customer.address = data.get('address', customer.address)
     db.session.commit()
     return jsonify(customer.to_dict())
