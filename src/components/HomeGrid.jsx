@@ -78,29 +78,17 @@ export default function HomeGrid({ onNavigate }) {
     >
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 14,
-            background: `linear-gradient(135deg, ${COLORS.steel}, ${COLORS.steelDark})`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 20px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          }}
-        >
-          <span
+        <div style={{ margin: '0 auto 20px' }}>
+          <img
+            src="/jango-logo.jpeg"
+            alt="Jango Logo"
             style={{
-              fontSize: 24,
-              fontWeight: 900,
-              color: COLORS.charcoal,
-              fontFamily: 'Georgia, serif',
+              width: 180,
+              height: 'auto',
+              borderRadius: 12,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
             }}
-          >
-            J
-          </span>
+          />
         </div>
         <div
           style={{
@@ -112,17 +100,6 @@ export default function HomeGrid({ onNavigate }) {
         >
           {greeting()}
           {currentUser?.displayName ? `, ${currentUser.displayName}` : ''}
-        </div>
-        <div
-          style={{
-            fontSize: 26,
-            fontWeight: 700,
-            color: textPrimary,
-            fontFamily: language === 'ar' ? 'Arial, sans-serif' : 'Georgia, serif',
-            letterSpacing: -0.5,
-          }}
-        >
-          {language === 'ar' ? 'نظام جانغو' : 'Jango POS'}
         </div>
         <div
           style={{
@@ -188,13 +165,7 @@ export default function HomeGrid({ onNavigate }) {
                   color: mod.color,
                 }}
               >
-                <span
-                  style={{
-                    color: mod.color,
-                    display: 'flex',
-                    fontSize: 20,
-                  }}
-                >
+                <span style={{ color: mod.color, display: 'flex', fontSize: 20 }}>
                   <Icon />
                 </span>
               </div>
@@ -236,9 +207,7 @@ export default function HomeGrid({ onNavigate }) {
           gap: 4,
         }}
       >
-        <div>
-          Version · Jango Furniture
-        </div>
+        <div>Version · Jango Furniture</div>
         <div>
           Powered & Developed by{' '}
           <a
