@@ -363,7 +363,6 @@ def generate_monthly():
         'generated': len(generated), 'skipped': skipped,
         'month': current_month, 'expenses': [e.to_dict() for e in generated],
     }), 201
-
 @expenses_bp.route('/check-monthly', methods=['GET'])
 def check_monthly():
     current_month = date.today().strftime('%Y-%m')
